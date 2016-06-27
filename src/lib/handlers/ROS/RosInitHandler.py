@@ -197,8 +197,6 @@ class RosInitHandler(handlerTemplates.InitHandler):
         else:
             pointArray = [x for x in region.getPoints(hole_id = hole)]
         pointArray = map(self.coordmap_map2lab, pointArray)
-        # TODO: use ratio?
-        # regionPoints = [(self.ratio * pt[0],self.ratio * pt[1]) for pt in pointArray]
         regionPoints = [(pt[0],pt[1]) for pt in pointArray]
         formedPolygon= Polygon.Polygon(regionPoints)
         return formedPolygon
@@ -405,11 +403,9 @@ class RosInitHandler(handlerTemplates.InitHandler):
         # This is accomplished through edits of the world file before opening
         path=self.path + "/" + self.worldFile # Potential problem when version changes >_<
         searchExp='<plane><size>'
-        T=[self.imgWidth,self.imgHeight]
+        T=[self.ratio * self.imgWidth,self.ratio * self.imgHeight]
         resizeX=T[0]
         resizeY=T[1]
-        # TODO: fix resize?
-        # replaceExp='            <plane><size>'+str(self.imgWidth)+' '+str(self.imgHeight)+'</size><normal>0 0 1</normal></plane>\n'
         replaceExp='            <plane><size>'+str(resizeX)+' '+str(resizeY)+'</size><normal>0 0 1</normal></plane>\n'
         self.replaceAll(path,searchExp,replaceExp)
 
@@ -452,7 +448,6 @@ class RosInitHandler(handlerTemplates.InitHandler):
 
         print "Initial region name: ", initial_region.name, " I think I am here: ", map2lab, " and center is: ", center
 
-        # TODO: use ratio?
         os.environ['ROBOT_INITIAL_POSE']="-x "+str(map2lab[0])+" -y "+str(map2lab[1])
 
 # Needed because of errors due to control sequences?
