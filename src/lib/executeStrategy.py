@@ -99,6 +99,12 @@ class ExecutorStrategyExtensions(object):
             if self.transition_contains_motion:
                 self.postEvent("INFO", "Crossed border from %s to %s!" % (self.current_region.name, self.next_region.name))
 
+
+                for rname, subregs in self.proj.regionMapping.iteritems():
+                    if self.next_region.name in subregs:
+                        break
+                self.post_event_hierarchical("BORDER", "%s" % rname)
+
             if not self.proj.compile_options['fastslow']:
                 # Run actuators after motion
                 self.updateOutputs(self.next_state)

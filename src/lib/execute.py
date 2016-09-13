@@ -92,6 +92,7 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
 
         self.externalEventTarget = None
         self.externalEventTargetRegistered = threading.Event()
+        self.hierarchicalEventTarget = None
         self.postEventLock = threading.Lock()
         self.runStrategy = threading.Event()  # Start out paused
         self.alive = threading.Event()
@@ -101,17 +102,24 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
 
     def postEvent(self, eventType, eventData=None):
         """ Send a notice that an event occurred, if anyone wants it """
-
         with self.postEventLock:
-            if self.externalEventTarget is None:
-                return
+            if self.externalEventTarget is not None:
+                try:
+                    self.externalEventTarget.handleEvent(eventType, eventData)
+                except socket.error as e:
+                    logging.warning("Could not send event to remote event target: %s", e)
+                    logging.warning("Forcefully unsubscribing target.")
+                    self.externalEventTarget = None
 
-            try:
-                self.externalEventTarget.handleEvent(eventType, eventData)
-            except socket.error as e:
-                logging.warning("Could not send event to remote event target: %s", e)
-                logging.warning("Forcefully unsubscribing target.")
-                self.externalEventTarget = None
+    def post_event_hierarchical(self, event_type, event_data=None):
+        with self.postEventLock:
+            if self.hierarchicalEventTarget is not None:
+                try:
+                    self.hierarchicalEventTarget.handle_event(event_type, event_data)
+                except socket.error as e:
+                    logging.warning("Could not send event to remote event target: %s", e)
+                    logging.warning("Forcefully unsubscribing target.")
+                    self.hierarchicalEventTarget = None
 
     def loadSpecFile(self, filename):
         # Update with this new project
@@ -199,6 +207,15 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
         sys.stderr = redir
 
         self.externalEventTargetRegistered.set()
+
+    def registerHierarchicalEventTarget(self, address):
+        self.hierarchicalEventTarget = xmlrpclib.ServerProxy(address, allow_none=True)
+
+        # Redirect all output to the log
+        redir = RedirectText(self.hierarchicalEventTarget.handle_event)
+
+        sys.stdout = redir
+        sys.stderr = redir
 
     def initialize(self, spec_file, strategy_file, firstRun=True):
         """
@@ -370,7 +387,7 @@ class RedirectText:
 # Main function, run when called from command-line #
 ####################################################
 
-def execute_main(listen_port=None, spec_file=None, aut_file=None, show_gui=False):
+def execute_main(listen_port=None, spec_file=None, aut_file=None, show_gui=False, parent_port=None):
     logging.info("Hello. Let's do this!")
 
     # Create the XML-RPC server
@@ -398,6 +415,11 @@ def execute_main(listen_port=None, spec_file=None, aut_file=None, show_gui=False
     XMLRPCServerThread.daemon = True
     XMLRPCServerThread.start()
     logging.info("Executor listening for XML-RPC calls on http://127.0.0.1:{} ...".format(listen_port))
+
+    # Tell the parent we're ready, if there is one
+    if parent_port is not None:
+        parent_proxy = xmlrpclib.ServerProxy("http://127.0.0.1:{}".format(parent_port))
+        parent_proxy.executor_ready(listen_port)
 
     # Start the GUI if necessary
     if show_gui:
