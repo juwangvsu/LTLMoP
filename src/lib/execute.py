@@ -47,7 +47,6 @@ from resynthesis import ExecutorResynthesisExtensions
 from executeStrategy import ExecutorStrategyExtensions
 import globalConfig, logging
 
-
 ####################
 # HELPER FUNCTIONS #
 ####################
@@ -192,6 +191,12 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
     def resume(self):
         """ start/resume execution of the automaton """
         self.runStrategy.set()
+
+    def get_current_region(self):
+        return self.current_region
+
+    def get_next_region(self):
+        return self.next_region
 
     def isRunning(self):
         """ return whether the automaton is currently executing """
@@ -357,6 +362,10 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
             self.postEvent("FREQ", int(math.ceil(avg_freq)))
             pose = self.hsub.getPose(cached=True)[0:2]
             self.postEvent("POSE", tuple(map(int, self.hsub.coordmap_lab2map(pose))))
+
+            if self.hierarchicalEventTarget is not None:
+                self.post_event_hierarchical("POSE", tuple(map(int, self.hsub.coordmap_lab2map(pose))))
+
 
             last_gui_update_time = self.timer_func()
 

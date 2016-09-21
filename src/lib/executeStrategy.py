@@ -74,6 +74,8 @@ class ExecutorStrategyExtensions(object):
             self.next_state = random.choice(next_states)
             self.next_region = self.next_state.getPropValue('region')
 
+            logging.info("Next_state:{}".format(self.next_state))
+
             self.postEvent("INFO", "Currently pursuing goal #{}".format(self.next_state.goal_id))
 
             # See what we, as the system, need to do to get to this new state
@@ -87,6 +89,11 @@ class ExecutorStrategyExtensions(object):
                 # We're going to a new region
                 self.postEvent("INFO", "Heading to region %s..." % self.next_region.name)
 
+                # We have to move, so pass it to the hierarchical thingy
+                rcname = self.find_region_mapping(self.current_region.name)
+                rnname = self.find_region_mapping(self.next_region.name)
+                self.post_event_hierarchical("STATE", (rcname, rnname))
+
             self.arrived = False
 
         if not self.arrived:
@@ -99,11 +106,8 @@ class ExecutorStrategyExtensions(object):
             if self.transition_contains_motion:
                 self.postEvent("INFO", "Crossed border from %s to %s!" % (self.current_region.name, self.next_region.name))
 
-
-                for rname, subregs in self.proj.regionMapping.iteritems():
-                    if self.next_region.name in subregs:
-                        break
-                self.post_event_hierarchical("BORDER", "%s" % rname)
+                rname = self.find_region_mapping(self.next_region.name)
+                self.post_event_hierarchical("BORDER", rname)
 
             if not self.proj.compile_options['fastslow']:
                 # Run actuators after motion
@@ -113,6 +117,12 @@ class ExecutorStrategyExtensions(object):
             self.last_next_states = []  # reset
 
             self.postEvent("INFO", "Now in state %s (z = %s)" % (self.strategy.current_state.state_id, self.strategy.current_state.goal_id))
+
+    def find_region_mapping(self, name):
+        for rname, subregs in self.proj.regionMapping.iteritems():
+            if name in subregs:
+                break
+        return rname
 
     def HSubGetSensorValue(self,sensorList):
         """
