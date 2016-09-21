@@ -92,7 +92,7 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
             if self.current_game.current_region is not None and not self.arrived:
                 logging.info("Setting the last current region to {}".format(
                     self.current_game.current_region))
-                # self.last_current_region = self.current_game.current_region
+                self.last_current_region = self.current_game.current_region
 
             self.stop_local_game()
 
@@ -125,12 +125,10 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
             # Get the regions and swap them
             self.last_current_region = swap_exit(event_data)
             logging.info("Setting the last current region to {}, event: {}".format(self.last_current_region, event_data))
-            # self.last_current_region = event_data
-
-            # self.stop_local_game()
             self.arrived = True
+        elif event_type == "POSE":
+            self.pose_handler.setPose(event_data)
         else:
-            # logging.info("Got something else: [{}] {}".format(event_type, event_data))
             self.executor.postEvent(event_type, event_data)
 
     def find_region_mapping(self, name):

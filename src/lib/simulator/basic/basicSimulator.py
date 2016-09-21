@@ -66,3 +66,6 @@ class basicSimulator:
         Returns the current pose of the robot
         """
         return self.pose
+
+    def setPose(self, pose):
+        self.pose = pose

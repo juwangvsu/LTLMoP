@@ -171,8 +171,10 @@ class LocalGame(object):
 
     def teardown(self):
         # Clean up on exit
-        self.executor_proxy.pause()
-        self.executor_proxy.shutdown()
+        self.executor_proxy.postEvent("CLOSE", "")
+
+        # self.executor_proxy.pause()
+        # self.executor_proxy.shutdown()
         logging.info("Waiting for XML-RPC server to shut down...")
         self.serv.shutdown()
         self.xmlrpc_server_thread.join()
@@ -202,10 +204,10 @@ class LocalGame(object):
 
     def handle_event(self, event_type, event_data):
         """Is called from the execute/executeStrategy on events, like borders crossed"""
-        # if event_type == "POSE":
+        if event_type == "POSE":
         # If we get a pose just pass it to the parent
-        # self.parent.handle_event(event_type, event_data)
-        # self.executor_proxy.postEvent(event_type, event_data)
+            self.parent.handle_event(event_type, event_data)
+            # self.executor_proxy.postEvent(event_type, event_data)
         if event_type == "BORDER":
             self.current_region = event_data
             if self.goal_region == event_data:

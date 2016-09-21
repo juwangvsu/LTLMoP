@@ -183,6 +183,8 @@ class SimGUI_Frame(wx.Frame):
             wx.CallAfter(self.loadSpecFile, eventData)
         elif eventType == "REGIONS":
             wx.CallAfter(self.loadRegionFile, eventData)
+        elif eventType == "CLOSE":
+            self.Destroy()
         else:
             if isinstance(eventData, basestring):
                 if eventData.startswith("Output proposition"):

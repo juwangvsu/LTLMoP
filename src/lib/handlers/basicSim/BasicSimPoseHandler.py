@@ -31,4 +31,5 @@ class BasicSimPoseHandler(handlerTemplates.PoseHandler):
             self.last_pose = self.simulator.getPose()
         return self.last_pose
 
-
+    def setPose(self, pose):
+        self.last_pose = pose

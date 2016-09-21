@@ -55,6 +55,9 @@ class PoseHandler(Handler):
         """ Return the position of the robot """
         raise NotImplementedError
 
+    def setPose(self, pose):
+        raise NotImplementedError
+
 class SensorHandler(Handler):
     """
     Handle connection to sensors and abstraction (continuous sensor value -> discretized value over proposition(s))
