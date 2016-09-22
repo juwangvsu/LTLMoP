@@ -63,11 +63,11 @@ class LocalGame(object):
     def synthesize(self):
         """Synthesize the current specification"""
         compiler = SpecCompiler(self.spec_path)
-        if compiler.compile() is not None:
+        (synthesizable, b, c) = compiler.compile()
+        if synthesizable:
             self.dirty = False
         else:
             logging.error("Compilation went wrong")
-            sys.exit(1)
 
     def set_init_region(self, region):
         """ Set the init region by replacing it in the specification file """
@@ -81,7 +81,7 @@ class LocalGame(object):
                     self.proj.path + "/configs/" + config_name, inplace=True):
                 if is_it_the_line:
                     line = re.sub('init_region="(.*)"',
-                                'init_region="' + region + '"', line)
+                                  'init_region="' + region + '"', line)
                 if line.startswith("InitHandler:"):
                     is_it_the_line = True
 
@@ -113,14 +113,13 @@ class LocalGame(object):
         TODO: cache the synthesized strategies on disk
         """
         logging.info("Running the game")
+
         # Set up xmlrpc
         if self.dirty:
             self.parent.handle_event("INFO", "Starting to synthesize...")
             self.synthesize()
             self.parent.handle_event("INFO", "Done synthesizing")
-
         self.executor_setup()
-
 
         # Wait until the game is done
         self.game_done.wait()
@@ -205,71 +204,70 @@ class LocalGame(object):
     def handle_event(self, event_type, event_data):
         """Is called from the execute/executeStrategy on events, like borders crossed"""
         if event_type == "POSE":
-        # If we get a pose just pass it to the parent
+            # If we get a pose just pass it to the parent
             self.parent.handle_event(event_type, event_data)
             # self.executor_proxy.postEvent(event_type, event_data)
-        if event_type == "BORDER":
+        elif event_type == "BORDER":
             self.current_region = event_data
             if self.goal_region == event_data:
                 self.parent.handle_event(event_type, event_data)
                 self.game_done.set()
 
+# class AbstractGame(LocalGame):
+#     def __init__(self, project, level, id, parent_port=None):
+#         super(AbstractGame, self).__init__(project, level, id, parent_port)
 
-class AbstractGame(LocalGame):
-    def __init__(self, project, level, id, parent_port=None):
-        super(AbstractGame, self).__init__(project, level, id, parent_port)
+#         self.current_game = None
 
-        self.current_game = None
+#     def run(self):
+#         """ Set up things and wait for events """
+#         self.executor_setup()
+#         self.game_done.wait()
+#         self.teardown()
 
-    def run(self):
-        """ Set up things and wait for events """
-        self.executor_setup()
-        self.game_done.wait()
-        self.teardown()
+#     def create_game(self, current_region, next_region, init_region):
+#         # TODO: cleverly check for level
+#         if self.level == 1:
+#             local_game = LocalGame(self.proj, 0, current_region, self)
+#             # TODO: How to properly set region?
+#             local_game.set_init_region(init_region)
+#             local_game.set_goal_region(next_region)
+#         else:
+#             # TODO: figure out what exactly to do
+#             local_game = AbstractGame(self.proj, self.level - 1,
+#                                       current_region, self)
+#         return local_game
 
-    def create_game(self, current_region, next_region, init_region):
-        # TODO: cleverly check for level
-        if self.level == 1:
-            local_game = LocalGame(self.proj, 0, current_region, self)
-            # TODO: How to properly set region?
-            local_game.set_init_region(init_region)
-            local_game.set_goal_region(next_region)
-        else:
-            # TODO: figure out what exactly to do
-            local_game = AbstractGame(self.proj, self.level - 1,
-                                      current_region, self)
-        return local_game
+#     def handle_event(self, event_type, event_data):
+#         if event_type == "STATE":
+#             # If the state changes, stop the current game and create a new one
+#             (current_region, next_region) = event_data
+#             if current_region != next_region:
+#                 # TODO: Assume some init region if there was no game before
+#                 init_region = self.proj.init_region
+#                 if self.current_game is not None:
+#                     init_region = self.current_game.executor_proxy.get_current_region(
+#                     )
+#                     self.current_game.teardown()
 
-    def handle_event(self, event_type, event_data):
-        if event_type == "STATE":
-            # If the state changes, stop the current game and create a new one
-            (current_region, next_region) = event_data
-            if current_region != next_region:
-                # TODO: Assume some init region if there was no game before
-                init_region = self.proj.init_region
-                if self.current_game is not None:
-                    init_region = self.current_game.executor_proxy.get_current_region(
-                    )
-                    self.current_game.teardown()
+#                 self.current_game = self.create_game(
+#                     current_region, exit_helper(current_region,
+#                                                 next_region), init_region)
+#                 thr = threading.Thread(target=self.current_game.run)
+#                 thr.daemon = True
+#                 thr.start()
+#         if event_type == "BORDER":
+#             # TODO: trigger state evaluation/step
+#             logging.info("Borders crossed in parent to:{}".format(event_data))
+#             self.executor_proxy.set_arrived(True)
 
-                self.current_game = self.create_game(
-                    current_region, exit_helper(current_region,
-                                                next_region), init_region)
-                thr = threading.Thread(target=self.current_game.run)
-                thr.daemon = True
-                thr.start()
-        if event_type == "BORDER":
-            # TODO: trigger state evaluation/step
-            logging.info("Borders crossed in parent to:{}".format(event_data))
-            self.executor_proxy.set_arrived(True)
-
-    def teardown(self):
-        if self.current_game is not None:
-            self.current_game.teardown()
-        super(AbstractGame, self).teardown()
+#     def teardown(self):
+#         if self.current_game is not None:
+#             self.current_game.teardown()
+#         super(AbstractGame, self).teardown()
 
 
-        # HELPERS
+# HELPERS
 def path_helper(path, name, level, id):
     return path + name + "_" + "_".join(str(x) for x in [level, id])
 
@@ -283,16 +281,3 @@ def layer_helper(level, *arg):
 
 def exit_helper(fromr, to):
     return "exit_" + "_".join([fromr, to])
-
-
-def main():
-    hierarch = Hierarchical("Test", "/Users/adrian/Desktop/Test/", 2, "11")
-    # TODO: how to set initial region for the global game
-    game1_1 = AbstractGame(hierarch, 1, 1)
-    game1_1.set_init_region("1")
-    game1_1.set_goal_region("2")
-    game1_1.run()
-
-
-if __name__ == "__main__":
-    main()

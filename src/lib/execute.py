@@ -291,6 +291,7 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
             sys.exit(-1)
 
         logging.info("Starting from initial region: " + init_region.name)
+        self.post_event_hierarchical("BORDER", self.find_region_mapping(init_region.name))
         init_prop_assignments = {"region": init_region}
 
         # initialize all sensor and actuator methods

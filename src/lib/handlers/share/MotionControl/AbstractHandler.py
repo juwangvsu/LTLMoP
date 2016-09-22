@@ -40,7 +40,6 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
         self.executor = executor
         self.last_warning = 0
 
-        self.has_game = threading.Event()
         self.current_game = None
         self.current_thread = None
         self.arrived = False
@@ -83,32 +82,39 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
 
         if self.arrived:
             self.arrived = False
+            if self.current_game is not None:
+                self.stop_local_game()
             return True
 
-        if self.has_game.is_set() and (self.current_game.goal_region !=
-                                       exit_helper(current_reg, next_reg) or
-                                       self.arrived):
-
-            if self.current_game.current_region is not None and not self.arrived:
-                logging.info("Setting the last current region to {}".format(
-                    self.current_game.current_region))
-                self.last_current_region = self.current_game.current_region
-
+        # We need to go somewhere else
+        if self.current_game is not None and (
+                self.current_game.goal_region != exit_helper(current_reg,
+                                                             next_reg)):
+            logging.info("motionstuff: Setting the last current region to {}".
+                         format(self.current_game.current_region))
+            self.last_current_region = self.current_game.current_region
             self.stop_local_game()
 
-        if not self.has_game.is_set():
-            logging.info("New game! \o/".format(current_reg, exit_helper(
-                current_reg, next_reg), self.last_current_region))
+        if not self.current_game:
             self.arrived = False
-            # TODO set correct regions
-            self.current_game = self.create_local_game(
-                current_reg, exit_helper(current_reg,
-                                         next_reg), self.last_current_region)
-            self.current_thread = threading.Thread(
-                target=self.current_game.run)
-            self.current_thread.daemon = True
-            self.has_game.set()
-            self.current_thread.start()
+            # No need to move if we're at the goal region
+            # if current_reg != next_reg and self.last_current_region != exit_helper(
+            #         current_reg, next_reg):
+            if current_reg != next_reg:
+                self.current_game = self.create_local_game(
+                    current_reg, exit_helper(current_reg, next_reg),
+                    self.last_current_region)
+                self.current_thread = threading.Thread(
+                    target=self.current_game.run)
+                self.current_thread.daemon = True
+                self.current_thread.start()
+            # elif current_reg == next_reg:
+            #     # logging.info("Current = next reg, setting arrived = True")
+            #     # self.arrived = True
+            # elif self.last_current_region == exit_helper(current_reg, next_reg):
+            # logging.info("Last current region == exit helper thingy, setting arrived = True")
+            # FIXME: what to do now?
+            # self.arrived = True
 
         return self.arrived
 
@@ -124,7 +130,9 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
 
             # Get the regions and swap them
             self.last_current_region = swap_exit(event_data)
-            logging.info("Setting the last current region to {}, event: {}".format(self.last_current_region, event_data))
+            logging.info(
+                "eventstuff: Setting the last current region to {}, event: {}".
+                format(self.last_current_region, event_data))
             self.arrived = True
         elif event_type == "POSE":
             self.pose_handler.setPose(event_data)
@@ -138,15 +146,15 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
         return rname
 
     def stop_local_game(self):
-        self.current_game.game_done.set()
-        self.current_game = None
-        self.has_game.clear()
+        if self.current_game is not None:
+            self.current_game.game_done.set()
+            self.current_game = None
 
     def create_local_game(self, cur_reg, next_reg, init_reg):
         logging.info("Creating a local game: {} {} {}".format(
             cur_reg, next_reg, init_reg))
         hier = Hierarchical(self.proj_name, self.proj_path, 2,
-                            self.initial_region)
+                            self.last_current_region)
         game = LocalGame(hier, 0, cur_reg, self.listen_port)
         game.set_init_region(init_reg)
         game.set_goal_region(next_reg)
