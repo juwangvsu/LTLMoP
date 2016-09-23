@@ -23,25 +23,21 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
     def __init__(self, executor, shared_data, project_name, project_path,
                  initial_region):
         """
-        project_name (string): Do something, shit! (default="Test")
-        project_path (string): Do something, shit! (default="Test")
-        initial_region (string): Do something, shit! (default="11")
+        project_name (string): Project name (default="Test")
+        project_path (string): Absolute path to the project root folder (default="Test")
+        initial_region (string): Initial region of the lowest level (default="11")
         """
         self.proj_name = project_name
         self.proj_path = project_path
         self.initial_region = initial_region
 
-        self.drive_handler = executor.hsub.getHandlerInstanceByType(
-            handlerTemplates.DriveHandler)
         self.pose_handler = executor.hsub.getHandlerInstanceByType(
             handlerTemplates.PoseHandler)
         self.fwd_coordmap = executor.hsub.coordmap_map2lab
         self.rfi = executor.proj.rfi
         self.executor = executor
-        self.last_warning = 0
 
         self.current_game = None
-        self.current_thread = None
         self.arrived = False
 
         # This region is on level 0
@@ -52,6 +48,9 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
         self.setup_xmlrpc()
 
     def setup_xmlrpc(self):
+        """
+        Set up the xmlrpc server and store the port in the self.listen_port variable
+        """
         while True:
             self.listen_port = random.randint(10000, 65535)
             try:
@@ -81,44 +80,36 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
         next_reg = self.find_region_mapping(self.rfi.regions[next_reg].name)
 
         if self.arrived:
+            # We seem to have arrived, so return true and stop the current game
             self.arrived = False
             if self.current_game is not None:
                 self.stop_local_game()
             return True
 
-        # We need to go somewhere else
+        # We need to go somewhere else and a game is running
         if self.current_game is not None and (
                 self.current_game.goal_region != exit_helper(current_reg,
                                                              next_reg)):
-            logging.info("motionstuff: Setting the last current region to {}".
-                         format(self.current_game.current_region))
             self.last_current_region = self.current_game.current_region
             self.stop_local_game()
 
+        # No game is running
         if not self.current_game:
             self.arrived = False
-            # No need to move if we're at the goal region
-            # if current_reg != next_reg and self.last_current_region != exit_helper(
-            #         current_reg, next_reg):
             if current_reg != next_reg:
                 self.current_game = self.create_local_game(
                     current_reg, exit_helper(current_reg, next_reg),
                     self.last_current_region)
-                self.current_thread = threading.Thread(
-                    target=self.current_game.run)
-                self.current_thread.daemon = True
-                self.current_thread.start()
-            # elif current_reg == next_reg:
-            #     # logging.info("Current = next reg, setting arrived = True")
-            #     # self.arrived = True
-            # elif self.last_current_region == exit_helper(current_reg, next_reg):
-            # logging.info("Last current region == exit helper thingy, setting arrived = True")
-            # FIXME: what to do now?
-            # self.arrived = True
+                current_thread = threading.Thread(target=self.current_game.run)
+                current_thread.daemon = True
+                current_thread.start()
 
         return self.arrived
 
     def handle_event(self, event_type, event_data):
+        """
+        Gets called if an event happened that is of interest
+        """
         if event_type == "STATE":
             # If the state changes, stop the current game and create a new one
             (current_region, next_region) = event_data
@@ -140,6 +131,9 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
             self.executor.postEvent(event_type, event_data)
 
     def find_region_mapping(self, name):
+        """
+        Takes the decomposed region name and tries to find the original name
+        """
         for rname, subregs in self.executor.proj.regionMapping.iteritems():
             if name in subregs:
                 break
@@ -162,15 +156,25 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
 
 
 def swap_exit(region):
+    """
+    Expects a region string as in: exit_{region1}_{region2}
+    Returns exit_{region2}_{region1}
+    """
     (fromr, to) = exit_dehelper(region)
     return exit_helper(to, fromr)
 
 
 def exit_helper(fromr, to):
+    """
+    Returns exit_{fromr}_{to}
+    """
     # TODO: what if there are several doors between the same two rooms?
     return "exit_" + "_".join([fromr, to])
 
 
 def exit_dehelper(string):
+    """
+    Expects an exit string and returns the two regions as tuple
+    """
     splits = string.split("_")
     return (splits[1], splits[2])
