@@ -88,7 +88,7 @@ class Project:
         #### Load in the region file
 
         if decomposed:
-            regf_name = self.getFilenamePrefix() + "_decomposed.regions"
+            regf_name = self.getRegionFilenamePrefix() + "_decomposed.regions"
         else:
             try:
                 regf_name = os.path.join(self.project_root, self.spec_data['SETTINGS']['RegionFile'][0])
@@ -239,8 +239,13 @@ class Project:
 
             For example, if the spec file of this project is ``/home/ltlmop/examples/test/test.spec``
             then this function will return ``/home/ltlmop/examples/test/test``
-        """
+       """
         return os.path.join(self.project_root, self.project_basename)
+
+    def getRegionFilenamePrefix(self):
+        regionf = os.path.join(self.project_root, self.spec_data['SETTINGS']['RegionFile'][0])
+        regionfname, ext = os.path.splitext(regionf)
+        return regionfname
 
     def getStrategyFilename(self):
         """ Returns the full path of the file that should contain the strategy

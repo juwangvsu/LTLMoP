@@ -33,20 +33,34 @@ class Hierarchical(object):
 
 # Local game
 class LocalGame(object):
-    def __init__(self, project, level, id, parent_port=None):
+    def __init__(self,
+                 project,
+                 level,
+                 id,
+                 initial_region,
+                 goal_region,
+                 parent_port=None):
         self.proj = project
         self.level = level
         self.id = id
         self.path_prefix = path_helper(project.path, project.name, level, id)
         self.spec_path = self.path_prefix + ".spec"
         self.region_path = self.path_prefix + ".regions"
-        self.strat_path = self.path_prefix + ".aut"
-        self.dirty = True
+        self.target_spec_path = "{}_{}.spec".format(self.path_prefix,
+                                                    goal_region)
+        self.strat_path = "{}_{}.aut".format(self.path_prefix, goal_region)
+
+        # If there is an automaton file we assume it was synthesized already
+        self.dirty = not os.path.isfile(self.strat_path)
+
+        self.current_region = initial_region
         self.goal_region = None
-        self.current_region = None
         self.game_done = threading.Event()
         self.executor_ready_event = threading.Event()
         self.executor_port = None
+
+        self.set_init_region(initial_region)
+        self.set_goal_region(goal_region)
 
         # Get set up in executor_setup
         self.executor_proxy = None
@@ -62,12 +76,13 @@ class LocalGame(object):
 
     def synthesize(self):
         """Synthesize the current specification"""
-        compiler = SpecCompiler(self.spec_path)
-        (synthesizable, b, c) = compiler.compile()
-        if synthesizable:
-            self.dirty = False
-        else:
-            logging.error("Compilation went wrong")
+        if self.dirty:
+            compiler = SpecCompiler(self.target_spec_path)
+            (synthesizable, b, c) = compiler.compile()
+            if synthesizable:
+                self.dirty = False
+            else:
+                logging.error("Compilation went wrong")
 
     def set_init_region(self, region):
         """ Set the init region by replacing it in the specification file """
@@ -96,17 +111,20 @@ class LocalGame(object):
         goal_regex = re.compile("^(?P<spec>(Go to)|(visit))(?P<region>.*)",
                                 re.I)
         if self.goal_region != region:
-            self.dirty = True
+            self.strat_path = "{}_{}.aut".format(self.path_prefix, region)
+            self.dirty = not os.path.isfile(self.strat_path)
             self.goal_region = region
 
-            for line in fileinput.input(self.spec_path, inplace=True):
+            with open(self.spec_path, 'r') as input, open(
+                    self.target_spec_path, 'w') as output:
+                lines = input.readlines()
+                for line in lines:
+                    match = goal_regex.match(line)
+                    if match:
+                        line = match.group('spec') + " " + region
 
-                match = goal_regex.match(line)
-                if match:
-                    line = match.group('spec') + " " + region
-
-                sys.stdout.write(line)
-        return
+                    logging.error(line)
+                    output.write(line)
 
     def run(self):
         """Runs the local game, but checks first if it has to be synthesized (if goal or initial region changed)
@@ -119,6 +137,8 @@ class LocalGame(object):
             self.parent.handle_event("INFO", "Starting to synthesize...")
             self.synthesize()
             self.parent.handle_event("INFO", "Done synthesizing")
+        else:
+            self.parent.handle_event("INFO", "Strategy was already synthesized")
         self.executor_setup()
 
         # Wait until the game is done
@@ -155,7 +175,8 @@ class LocalGame(object):
         # Start the executor in a new thread
         self.exec_thread = threading.Thread(
             target=execute_main,
-            args=[None, self.spec_path, self.strat_path, True, listen_port])
+            args=[None, self.target_spec_path, self.strat_path, True,
+                  listen_port])
         self.exec_thread.daemon = True
         self.exec_thread.start()
 
@@ -281,3 +302,9 @@ def layer_helper(level, *arg):
 
 def exit_helper(fromr, to):
     return "exit_" + "_".join([fromr, to])
+
+
+def sha1_of_file(path):
+    import hashlib
+    with open(path, 'rb') as f:
+        return hashlib.sha1(f.read()).hexdigest()

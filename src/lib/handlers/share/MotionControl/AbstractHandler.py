@@ -155,9 +155,8 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
             cur_reg, next_reg, init_reg))
         hier = Hierarchical(self.proj_name, self.proj_path, 2,
                             self.last_current_region)
-        game = LocalGame(hier, 0, cur_reg, self.listen_port)
-        game.set_init_region(init_reg)
-        game.set_goal_region(next_reg)
+        game = LocalGame(hier, 0, cur_reg, init_reg, next_reg,
+                         self.listen_port)
 
         return game
 
