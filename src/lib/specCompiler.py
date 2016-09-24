@@ -112,7 +112,8 @@ class SpecCompiler(object):
         #self.proj.rfi.regions = filter(lambda r: not (r.isObstacle or r.name == "boundary"), self.proj.rfi.regions)
 
         # save the regions into new region file
-        filename = self.proj.getFilenamePrefix() + '_decomposed.regions'
+        # old: filename = self.proj.getFilenamePrefix() + '_decomposed.regions'
+        filename = self.proj.getRegionFilenamePrefix() + '_decomposed.regions'
 
         # FIXME: properly support obstacles in non-decomposed maps?
         if self.proj.compile_options["decompose"]:
@@ -949,7 +950,11 @@ class SpecCompiler(object):
             logging.info("Decomposing...")
             self._decompose()
         logging.info("Writing LTL file...")
-        spec, tb, resp = self._writeLTLFile()
+        try:
+            spec, tb, resp = self._writeLTLFile()
+        except Exception as e:
+            logging.error(e)
+
         logging.info("Writing SMV file...")
         self._writeSMVFile()
 

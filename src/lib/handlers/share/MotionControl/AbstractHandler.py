@@ -17,19 +17,32 @@ import threading
 from SimpleXMLRPCServer import SimpleXMLRPCServer
 import xmlrpclib
 import socket
+import os
+import json
 
 
 class AbstractHandler(handlerTemplates.MotionControlHandler):
-    def __init__(self, executor, shared_data, project_name, project_path,
-                 initial_region):
+    def __init__(self, executor, shared_data, initial_region, num_layers):
         """
-        project_name (string): Project name (default="Test")
-        project_path (string): Absolute path to the project root folder (default="Test")
         initial_region (string): Initial region of the lowest level (default="11")
+        num_layers (int): The total number of layers (default=3)
         """
-        self.proj_name = project_name
-        self.proj_path = project_path
-        self.initial_region = initial_region
+        self.proj_name = executor.proj.project_basename.split(".")[0]
+        self.proj_path = executor.proj.project_root + os.path.sep
+
+        self.num_layers = num_layers
+
+        # TODO: Don't allow "." in the file name other than those seperators
+        self.layer = int(executor.proj.getFilenamePrefix().split(".")[1])
+
+        thingys = executor.proj.getFilenamePrefix().split(".", 2)
+
+        # We are not the top level
+        # TODO: do something smart about this
+        if len(thingys) > 2:
+            self.id = thingys[2].split("#")[0]
+        else:
+            self.id = "0"
 
         self.pose_handler = executor.hsub.getHandlerInstanceByType(
             handlerTemplates.PoseHandler)
@@ -40,8 +53,11 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
         self.current_game = None
         self.arrived = False
 
-        # This region is on level 0
-        self.last_current_region = initial_region
+        # will be the path to initial region of the lower level
+        self.last_current_region = ".".join(initial_region.split(".")[1:])
+
+        with open(self.proj_path + "mappings.json") as f:
+            self.mappings = json.load(f)
 
         self.listen_port = None
         self.xmlrpc_server_thread = None
@@ -79,18 +95,28 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
                                                .name)
         next_reg = self.find_region_mapping(self.rfi.regions[next_reg].name)
 
+        # logging.error("going from {} to {}".format(current_reg, next_reg))
+
         if self.arrived:
             # We seem to have arrived, so return true and stop the current game
             self.arrived = False
             if self.current_game is not None:
+                # TODO: do we need to sleep here?
+                time.sleep(1)
                 self.stop_local_game()
             return True
 
         # We need to go somewhere else and a game is running
-        if self.current_game is not None and (
-                self.current_game.goal_region != exit_helper(current_reg,
-                                                             next_reg)):
+        nreg = next_reg if next_reg.startswith("exit") else self.exit_helper(
+            current_reg, next_reg)
+        if (self.current_game is not None
+            ) and nreg != self.current_game.goal_region:
+            # TODO remove debug
+            logging.error(self.id + ": We need to change!")
+            logging.error(nreg)
+            logging.error(self.current_game.goal_region)
             self.last_current_region = self.current_game.current_region
+            logging.error(self.last_current_region)
             self.stop_local_game()
 
         # No game is running
@@ -98,8 +124,7 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
             self.arrived = False
             if current_reg != next_reg:
                 self.current_game = self.create_local_game(
-                    current_reg, exit_helper(current_reg, next_reg),
-                    self.last_current_region)
+                    current_reg, next_reg, self.last_current_region)
                 current_thread = threading.Thread(target=self.current_game.run)
                 current_thread.daemon = True
                 current_thread.start()
@@ -115,16 +140,26 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
             (current_region, next_region) = event_data
             logging.info("STATE: {}".format(event_data))
         elif event_type == "BORDER":
-            # TODO: trigger state evaluation/step
             logging.info("Borders crossed in MotionHandler to:{}".format(
                 event_data))
 
-            # Get the regions and swap them
-            self.last_current_region = swap_exit(event_data)
+            # FOO
+            # We got to an exit, get the next region from it
+            if self.is_toplevel():
+                (ex, level, regions) = event_data.split(".")
+                (fr, to) = regions.split("_")
+                self.last_current_region = self.mappings[fr][str(
+                    self.layer - 1)]["{}.{}".format(level, regions)]
+            else:
+                (ex, regions) = event_data.split(".", 1)
+                self.last_current_region = self.mappings[self.id][str(
+                    self.layer - 1)][regions]
+
             logging.info(
                 "eventstuff: Setting the last current region to {}, event: {}".
                 format(self.last_current_region, event_data))
             self.arrived = True
+
         elif event_type == "POSE":
             self.pose_handler.setPose(event_data)
         else:
@@ -145,36 +180,60 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
             self.current_game = None
 
     def create_local_game(self, cur_reg, next_reg, init_reg):
-        logging.info("Creating a local game: {} {} {}".format(
-            cur_reg, next_reg, init_reg))
-        hier = Hierarchical(self.proj_name, self.proj_path, 2,
+        hier = Hierarchical(self.proj_name, self.proj_path, self.num_layers,
                             self.last_current_region)
-        game = LocalGame(hier, 0, cur_reg, init_reg, next_reg,
-                         self.listen_port)
 
+        # TODO: Do something smart so this isn't that ugly
+        # If the next region starts with exit already we assume it is the exit of the upper level
+        if next_reg.startswith("exit"):
+            goal_for_game = next_reg
+        else:
+            goal_for_game = self.exit_helper(cur_reg, next_reg)
+
+        # Check if we're the top level
+        if self.is_toplevel():
+            logging.info("Creating a local game: {}, {} {} {}".format(
+                self.layer - 1, cur_reg, init_reg, next_reg))
+            game = LocalGame(hier, self.layer - 1, cur_reg, init_reg,
+                             goal_for_game, self.listen_port)
+        else:
+            # If not, create the id by appending the current region to our id
+            logging.info("Creating a local game: {}, {} {} {}".format(
+                self.layer - 1, ".".join(
+                    x for x in [self.id, cur_reg]), init_reg, goal_for_game))
+            game = LocalGame(hier, self.layer - 1,
+                             ".".join(x for x in [self.id, cur_reg]), init_reg,
+                             next_reg, self.listen_port)
         return game
 
+    def exit_helper(self, fr, to):
 
-def swap_exit(region):
-    """
-    Expects a region string as in: exit_{region1}_{region2}
-    Returns exit_{region2}_{region1}
-    """
-    (fromr, to) = exit_dehelper(region)
-    return exit_helper(to, fromr)
+        return "exit.{}.{}_{}".format(self.layer - 1, fr, to)
+
+    def is_toplevel(self):
+        return self.id == "0"
+
+    # def find_exit(self, level, from_, to):
+    #     for rname, subregs in self.executor.proj.regionMapping.iteritems():
+    #         logging.error(rname)
+    #         if not rname.startswith("exit"):
+    #             continue
+    #         if rname.startswith("exit." + str(level) + "." + from_ + "_" + to):
+    #             logging.error("FOUND IT" + rname)
+    #             return rname
+    #         logging.error("rname doesn't start with " + "exit." + str(level) + "." + from_ + "_" + to + "|||" + rname)
+    #     return None
 
 
-def exit_helper(fromr, to):
+def exit_string(str):
     """
-    Returns exit_{fromr}_{to}
+    exit.level.from_to
     """
-    # TODO: what if there are several doors between the same two rooms?
-    return "exit_" + "_".join([fromr, to])
+    splits = str.split(".")
+    return (splits[0], splits[1], splits[2])
 
 
-def exit_dehelper(string):
-    """
-    Expects an exit string and returns the two regions as tuple
-    """
-    splits = string.split("_")
-    return (splits[1], splits[2])
+def swap_exit(str):
+    (ex, level, from_to) = exit_string(str)
+    (fr, to) = from_to.split("_")
+    return "exit.{}.{}_{}".format(level, to, fr)

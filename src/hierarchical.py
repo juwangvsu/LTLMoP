@@ -46,15 +46,15 @@ class LocalGame(object):
         self.path_prefix = path_helper(project.path, project.name, level, id)
         self.spec_path = self.path_prefix + ".spec"
         self.region_path = self.path_prefix + ".regions"
-        self.target_spec_path = "{}_{}.spec".format(self.path_prefix,
+        self.target_spec_path = "{}#{}.spec".format(self.path_prefix,
                                                     goal_region)
-        self.strat_path = "{}_{}.aut".format(self.path_prefix, goal_region)
+        self.strat_path = "{}#{}.aut".format(self.path_prefix, goal_region)
 
         # If there is an automaton file we assume it was synthesized already
         self.dirty = not os.path.isfile(self.strat_path)
 
         self.current_region = initial_region
-        self.goal_region = None
+        self.goal_region = goal_region
         self.game_done = threading.Event()
         self.executor_ready_event = threading.Event()
         self.executor_port = None
@@ -88,15 +88,21 @@ class LocalGame(object):
         """ Set the init region by replacing it in the specification file """
         # TODO: Do it properly (i.e. not via fiddling with the file)
         if region is not None:
+            # Get only the region of the current level for the init handler
+            # but keep the whole path for the abstract handler
+            reg = region.split(".")[-(self.level + 1)]
 
             config_name = self.find_current_config()
-            logging.warning(self.path_prefix + "/configs/" + config_name)
             is_it_the_line = False
             for line in fileinput.input(
                     self.proj.path + "/configs/" + config_name, inplace=True):
                 if is_it_the_line:
                     line = re.sub('init_region="(.*)"',
-                                  'init_region="' + region + '"', line)
+                                  'init_region="' + reg + '"', line)
+                    is_it_the_line = False
+                if line.startswith("share.MotionControl.AbstractHandler"):
+                    line = re.sub('initial_region="(.*)"',
+                                  'initial_region="' + region + '"', line)
                 if line.startswith("InitHandler:"):
                     is_it_the_line = True
 
@@ -110,20 +116,16 @@ class LocalGame(object):
         """
         goal_regex = re.compile("^(?P<spec>(Go to)|(visit))(?P<region>.*)",
                                 re.I)
-        if self.goal_region != region:
-            self.strat_path = "{}_{}.aut".format(self.path_prefix, region)
-            self.dirty = not os.path.isfile(self.strat_path)
-            self.goal_region = region
-
+        if self.dirty:
             with open(self.spec_path, 'r') as input, open(
                     self.target_spec_path, 'w') as output:
+
                 lines = input.readlines()
                 for line in lines:
                     match = goal_regex.match(line)
                     if match:
                         line = match.group('spec') + " " + region
 
-                    logging.error(line)
                     output.write(line)
 
     def run(self):
@@ -138,15 +140,23 @@ class LocalGame(object):
             self.synthesize()
             self.parent.handle_event("INFO", "Done synthesizing")
         else:
-            self.parent.handle_event("INFO", "Strategy was already synthesized")
-        self.executor_setup()
+            self.parent.handle_event("INFO",
+                                     "Strategy was already synthesized")
+        try:
+            self.executor_setup()
+        except Exception as e:
+            logging.error("QHAJD: {}".format(e))
 
         # Wait until the game is done
         self.game_done.wait()
 
         logging.info("Stopping myself")
-        # Stop xmlrpc
-        self.teardown()
+
+        try:
+            # Stop xmlrpc
+            self.teardown()
+        except Exception as e:
+            logging.error("YOOOO: {}".format(e))
 
     def executor_setup(self):
         """Set up the xmlrpc connection between the executor and the game"""
@@ -188,6 +198,10 @@ class LocalGame(object):
             "http://127.0.0.1:{}".format(self.executor_port), allow_none=True)
         self.executor_proxy.registerHierarchicalEventTarget(
             "http://127.0.0.1:{}".format(listen_port))
+
+        self.executor_proxy.postEvent(
+            "INFO", "Game on level {}: {} {} {}".format(
+                self.level, self.id, self.current_region, self.goal_region))
 
     def teardown(self):
         # Clean up on exit
@@ -290,14 +304,15 @@ class LocalGame(object):
 
 # HELPERS
 def path_helper(path, name, level, id):
-    return path + name + "_" + "_".join(str(x) for x in [level, id])
+    return path + name + "." + ".".join(str(x) for x in [level, id])
 
 
-def layer_helper(level, *arg):
-    """Convert a hierarchy level and a list of integers (ids of games) to a path.
-    For example: (0, 1, 3) should return "0_1_3".
+def kayer_helper(level, *arg):
     """
-    return level + "_" + "_".join(str(x) for x in arg)
+    Convert a hierarchy level and a list of integers (ids of games) to a path.
+    For example: (0, 1, 3) should return "0.1.3".
+    """
+    return level + "." + ".".join(str(x) for x in arg)
 
 
 def exit_helper(fromr, to):
