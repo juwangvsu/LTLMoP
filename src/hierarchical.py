@@ -19,6 +19,8 @@ while t != "src":
         print "I have no idea where I am; this is ridiculous"
         sys.exit(1)
 
+goal_regex = re.compile("^(?P<spec>(Go to))(?P<region>.*)", re.I)
+
 
 # Highest level
 class Hierarchical(object):
@@ -68,6 +70,7 @@ class LocalGame(object):
         self.exec_thread = None
         self.xmlrpc_server_thread = None
 
+        # self.parent is an AbstractHandler
         if parent_port is None:
             self.parent = None
         else:
@@ -82,7 +85,8 @@ class LocalGame(object):
             if synthesizable:
                 self.dirty = False
             else:
-                logging.error("Compilation went wrong")
+                logging.error("Compilation went wrong: {}, {}, {}".format(
+                    b, c, self.spec_path))
 
     def set_init_region(self, region):
         """ Set the init region by replacing it in the specification file """
@@ -114,8 +118,6 @@ class LocalGame(object):
         """Sets the goal region of the game by changing the specification file
         TODO: don't do it by fiddling with files
         """
-        goal_regex = re.compile("^(?P<spec>(Go to)|(visit))(?P<region>.*)",
-                                re.I)
         if self.dirty:
             with open(self.spec_path, 'r') as input, open(
                     self.target_spec_path, 'w') as output:
@@ -123,8 +125,10 @@ class LocalGame(object):
                 lines = input.readlines()
                 for line in lines:
                     match = goal_regex.match(line)
-                    if match:
+                    if match and (region is not None):
                         line = match.group('spec') + " " + region
+                    elif match and (region is None):
+                        line = ""
 
                     output.write(line)
 
@@ -150,13 +154,12 @@ class LocalGame(object):
         # Wait until the game is done
         self.game_done.wait()
 
-        logging.info("Stopping myself")
+    def stop(self):
+        self.game_done.set()
+        self.teardown()
 
-        try:
-            # Stop xmlrpc
-            self.teardown()
-        except Exception as e:
-            logging.error("YOOOO: {}".format(e))
+    def get_current_region(self):
+        return self.current_region
 
     def executor_setup(self):
         """Set up the xmlrpc connection between the executor and the game"""
@@ -186,7 +189,8 @@ class LocalGame(object):
         self.exec_thread = threading.Thread(
             target=execute_main,
             args=[None, self.target_spec_path, self.strat_path, True,
-                  listen_port])
+                  listen_port],
+            name="LocalGame_{}#{}".format(self.id, self.goal_region))
         self.exec_thread.daemon = True
         self.exec_thread.start()
 
@@ -203,17 +207,18 @@ class LocalGame(object):
             "INFO", "Game on level {}: {} {} {}".format(
                 self.level, self.id, self.current_region, self.goal_region))
 
-    def teardown(self):
-        # Clean up on exit
-        self.executor_proxy.postEvent("CLOSE", "")
+    def pause(self):
+        self.executor_proxy.pause()
 
-        # self.executor_proxy.pause()
-        # self.executor_proxy.shutdown()
-        logging.info("Waiting for XML-RPC server to shut down...")
+    def resume(self):
+        self.executor_proxy.resume()
+
+    def teardown(self):
+        self.executor_proxy.shutdown()
         self.serv.shutdown()
         self.xmlrpc_server_thread.join()
         self.exec_thread.join()
-        logging.info("XML-RPC server shutdown complete.  Goodbye.")
+        logging.info("Local game shut down")
 
     def find_current_config(self):
         """Find the name of the current config in the specification file"""
@@ -244,62 +249,11 @@ class LocalGame(object):
             # self.executor_proxy.postEvent(event_type, event_data)
         elif event_type == "BORDER":
             self.current_region = event_data
-            if self.goal_region == event_data:
+            if event_data.startswith("exit"):
                 self.parent.handle_event(event_type, event_data)
                 self.game_done.set()
-
-# class AbstractGame(LocalGame):
-#     def __init__(self, project, level, id, parent_port=None):
-#         super(AbstractGame, self).__init__(project, level, id, parent_port)
-
-#         self.current_game = None
-
-#     def run(self):
-#         """ Set up things and wait for events """
-#         self.executor_setup()
-#         self.game_done.wait()
-#         self.teardown()
-
-#     def create_game(self, current_region, next_region, init_region):
-#         # TODO: cleverly check for level
-#         if self.level == 1:
-#             local_game = LocalGame(self.proj, 0, current_region, self)
-#             # TODO: How to properly set region?
-#             local_game.set_init_region(init_region)
-#             local_game.set_goal_region(next_region)
-#         else:
-#             # TODO: figure out what exactly to do
-#             local_game = AbstractGame(self.proj, self.level - 1,
-#                                       current_region, self)
-#         return local_game
-
-#     def handle_event(self, event_type, event_data):
-#         if event_type == "STATE":
-#             # If the state changes, stop the current game and create a new one
-#             (current_region, next_region) = event_data
-#             if current_region != next_region:
-#                 # TODO: Assume some init region if there was no game before
-#                 init_region = self.proj.init_region
-#                 if self.current_game is not None:
-#                     init_region = self.current_game.executor_proxy.get_current_region(
-#                     )
-#                     self.current_game.teardown()
-
-#                 self.current_game = self.create_game(
-#                     current_region, exit_helper(current_region,
-#                                                 next_region), init_region)
-#                 thr = threading.Thread(target=self.current_game.run)
-#                 thr.daemon = True
-#                 thr.start()
-#         if event_type == "BORDER":
-#             # TODO: trigger state evaluation/step
-#             logging.info("Borders crossed in parent to:{}".format(event_data))
-#             self.executor_proxy.set_arrived(True)
-
-#     def teardown(self):
-#         if self.current_game is not None:
-#             self.current_game.teardown()
-#         super(AbstractGame, self).teardown()
+            else:
+                self.parent.handle_event(event_type, event_data)
 
 
 # HELPERS
@@ -307,7 +261,7 @@ def path_helper(path, name, level, id):
     return path + name + "." + ".".join(str(x) for x in [level, id])
 
 
-def kayer_helper(level, *arg):
+def layer_helper(level, *arg):
     """
     Convert a hierarchy level and a list of integers (ids of games) to a path.
     For example: (0, 1, 3) should return "0.1.3".

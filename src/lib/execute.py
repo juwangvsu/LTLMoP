@@ -116,7 +116,7 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
                 try:
                     self.hierarchicalEventTarget.handle_event(event_type, event_data)
                 except socket.error as e:
-                    logging.warning("Could not send event to remote event target: %s", e)
+                    logging.warning("Could not send event to remote hierarchical target: %s", e)
                     logging.warning("Forcefully unsubscribing target.")
                     self.hierarchicalEventTarget = None
 
@@ -161,14 +161,18 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
         self.runStrategy.clear()
         logging.info("QUITTING.")
 
-        if h in self.hsub.handler_instance:
+        for h in self.hsub.handler_instance:
             if hasattr(h, "_stop"):
                 logging.debug("Calling _stop() on {}".format(h.__class__.__name__))
                 h._stop()
             else:
                 logging.debug("{} does not have _stop() function".format(h.__class__.__name__))
 
+        logging.debug("Done quitting1")
+        self.postEvent("CLOSE")
+        logging.debug("Done quitting2")
         self.alive.clear()
+        logging.debug("Done quitting")
 
     def pause(self):
         """ pause execution of the automaton """
@@ -181,7 +185,7 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
         self.runStrategy.set()
 
     def get_current_region(self):
-        return self.current_region
+        return self.find_region_mapping(self.current_region.name)
 
     def get_next_region(self):
         return self.next_region
@@ -202,6 +206,9 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
         self.externalEventTargetRegistered.set()
 
     def registerHierarchicalEventTarget(self, address):
+        """
+        Register the parent hierarchical.LocalGame
+        """
         self.hierarchicalEventTarget = xmlrpclib.ServerProxy(address, allow_none=True)
 
         # Redirect all output to the log
@@ -263,9 +270,11 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
         # Load automaton file
         new_strategy = self.loadAutFile(strategy_file)
 
-        # if firstRun:
-            ### Wait for the initial start command
-            # logging.info("Ready.  Press [Start] to begin...")
+        if firstRun:
+            # Wait for the initial start command
+            logging.info("Ready.  Press [Start] to begin...")
+            time.sleep(.5)
+            self.runStrategy.set()
             # self.runStrategy.wait()
 
         ### Figure out where we should start from by passing proposition assignments to strategy and search for initial state
@@ -318,45 +327,48 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
 
         # FIXME: don't crash if no spec file is loaded initially
         while self.alive.isSet():
-            # Idle if we're not running
-            if not self.runStrategy.isSet():
-                self.hsub.setVelocity(0,0)
+            try:
+                # Idle if we're not running
+                if not self.runStrategy.isSet():
+                    self.hsub.setVelocity(0,0)
 
-                # wait for either the FSA to unpause or for termination
-                while (not self.runStrategy.wait(0.1)) and self.alive.isSet():
-                    pass
+                    # wait for either the FSA to unpause or for termination
+                    while (not self.runStrategy.wait(0.1)) and self.alive.isSet():
+                        pass
 
-            # Exit immediately if we're quitting
-            if not self.alive.isSet():
-                break
+                # Exit immediately if we're quitting
+                if not self.alive.isSet():
+                    break
 
-            self.prev_outputs = self.strategy.current_state.getOutputs()
-            self.prev_z = self.strategy.current_state.goal_id
+                self.prev_outputs = self.strategy.current_state.getOutputs()
+                self.prev_z = self.strategy.current_state.goal_id
 
-            tic = self.timer_func()
-            self.runStrategyIteration()
-            toc = self.timer_func()
-
-            #self.checkForInternalFlags()
-
-            # Rate limiting of execution and GUI update
-            while (toc - tic) < 0.05:
-                time.sleep(0.005)
+                tic = self.timer_func()
+                self.runStrategyIteration()
                 toc = self.timer_func()
 
-            # Update GUI
-            # If rate limiting is disabled in the future add in rate limiting here for the GUI:
-            # if show_gui and (timer_func() - last_gui_update_time > 0.05)
-            avg_freq = 0.9 * avg_freq + 0.1 * 1 / (toc - tic) # IIR filter
-            self.postEvent("FREQ", int(math.ceil(avg_freq)))
-            pose = self.hsub.getPose(cached=True)[0:2]
-            self.postEvent("POSE", tuple(map(int, self.hsub.coordmap_lab2map(pose))))
+                #self.checkForInternalFlags()
 
-            if self.hierarchicalEventTarget is not None:
-                self.post_event_hierarchical("POSE", tuple(map(int, self.hsub.coordmap_lab2map(pose))))
+                # Rate limiting of execution and GUI update
+                while (toc - tic) < 0.05:
+                    time.sleep(0.005)
+                    toc = self.timer_func()
+
+                # Update GUI
+                # If rate limiting is disabled in the future add in rate limiting here for the GUI:
+                # if show_gui and (timer_func() - last_gui_update_time > 0.05)
+                avg_freq = 0.9 * avg_freq + 0.1 * 1 / (toc - tic) # IIR filter
+                self.postEvent("FREQ", int(math.ceil(avg_freq)))
+                pose = self.hsub.getPose(cached=True)[0:2]
+                self.postEvent("POSE", tuple(map(int, self.hsub.coordmap_lab2map(pose))))
+
+                if self.hierarchicalEventTarget is not None:
+                    self.post_event_hierarchical("POSE", tuple(map(int, self.hsub.coordmap_lab2map(pose))))
 
 
-            last_gui_update_time = self.timer_func()
+                last_gui_update_time = self.timer_func()
+            except Exception as e:
+                logging.error(e)
 
         logging.debug("execute.py quitting...")
 
@@ -434,7 +446,6 @@ def execute_main(listen_port=None, spec_file=None, aut_file=None, show_gui=False
     if parent_port is not None:
         parent_proxy = xmlrpclib.ServerProxy("http://127.0.0.1:{}".format(parent_port))
         parent_proxy.executor_ready(listen_port)
-        e.runStrategy.set()
 
     # Start the executor's main loop in this thread
     e.run()

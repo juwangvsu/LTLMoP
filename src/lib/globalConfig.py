@@ -26,7 +26,7 @@ def setupLogging(loggerLevel=None):
         def __init__(self, *args, **kwds):
             super(ColorLogFormatter, self).__init__(*args, **kwds)
             self.plain_formatter = logging.Formatter(" [ %(threadName)s %(module)s ] %(message)s")
-            self.detailed_formatter = logging.Formatter(" --> [%(levelname)s] (%(pathname)s, line %(lineno)s): %(message)s")
+            self.detailed_formatter = logging.Formatter("--> %(threadName)s [%(levelname)s] (%(pathname)s, line %(lineno)s): %(message)s")
 
         def colorize(self, level, string):
             if sys.platform in ['win32', 'cygwin']:

@@ -95,39 +95,35 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
                                                .name)
         next_reg = self.find_region_mapping(self.rfi.regions[next_reg].name)
 
-        # logging.error("going from {} to {}".format(current_reg, next_reg))
-
         if self.arrived:
             # We seem to have arrived, so return true and stop the current game
             self.arrived = False
             if self.current_game is not None:
-                # TODO: do we need to sleep here?
-                time.sleep(1)
                 self.stop_local_game()
             return True
 
         # We need to go somewhere else and a game is running
-        nreg = next_reg if next_reg.startswith("exit") else self.exit_helper(
-            current_reg, next_reg)
+        if next_reg.startswith("exit"):
+            nreg = next_reg
+        elif current_reg == next_reg:
+            nreg = None
+        else:
+            nreg = self.exit_helper(current_reg, next_reg)
+
         if (self.current_game is not None
             ) and nreg != self.current_game.goal_region:
-            # TODO remove debug
-            logging.error(self.id + ": We need to change!")
-            logging.error(nreg)
-            logging.error(self.current_game.goal_region)
-            self.last_current_region = self.current_game.current_region
-            logging.error(self.last_current_region)
             self.stop_local_game()
 
         # No game is running
         if not self.current_game:
             self.arrived = False
-            if current_reg != next_reg:
-                self.current_game = self.create_local_game(
-                    current_reg, next_reg, self.last_current_region)
-                current_thread = threading.Thread(target=self.current_game.run)
-                current_thread.daemon = True
-                current_thread.start()
+            self.current_game = self.create_local_game(
+                current_reg, next_reg, self.last_current_region)
+            current_thread = threading.Thread(
+                target=self.current_game.run,
+                name="AbstractHandler_{}#{}".format(self.id, next_reg))
+            current_thread.daemon = True
+            current_thread.start()
 
         return self.arrived
 
@@ -143,27 +139,39 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
             logging.info("Borders crossed in MotionHandler to:{}".format(
                 event_data))
 
-            # FOO
             # We got to an exit, get the next region from it
-            if self.is_toplevel():
-                (ex, level, regions) = event_data.split(".")
-                (fr, to) = regions.split("_")
-                self.last_current_region = self.mappings[fr][str(
-                    self.layer - 1)]["{}.{}".format(level, regions)]
+            if event_data.startswith("exit"):
+                if self.is_toplevel():
+                    (ex, level, regions) = event_data.split(".")
+                    (fr, to) = regions.split("_")
+                    self.last_current_region = self.mappings[fr][str(
+                        self.layer - 1)]["{}.{}".format(level, regions)]
+                else:
+                    (ex, regions) = event_data.split(".", 1)
+                    self.last_current_region = self.mappings[self.id][str(
+                        self.layer - 1)][regions]
+                self.arrived = True
             else:
-                (ex, regions) = event_data.split(".", 1)
-                self.last_current_region = self.mappings[self.id][str(
-                    self.layer - 1)][regions]
+                self.last_current_region = ".".join(
+                    [self.executor.get_current_region(), event_data])
+                self.executor.post_event_hierarchical("BORDER",
+                                                      self.last_current_region)
 
             logging.info(
                 "eventstuff: Setting the last current region to {}, event: {}".
                 format(self.last_current_region, event_data))
-            self.arrived = True
 
         elif event_type == "POSE":
             self.pose_handler.setPose(event_data)
         else:
             self.executor.postEvent(event_type, event_data)
+
+    def _stop(self):
+        """
+        Stop all of my children and then myself
+        """
+        # Stop the local game
+        self.stop_local_game()
 
     def find_region_mapping(self, name):
         """
@@ -175,9 +183,14 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
         return rname
 
     def stop_local_game(self):
+        """
+        Shuts down the local game, which in turn shuts the children down
+        """
+        logging.debug("Stopping local game")
         if self.current_game is not None:
-            self.current_game.game_done.set()
+            self.current_game.stop()
             self.current_game = None
+        logging.debug("Stopped local game")
 
     def create_local_game(self, cur_reg, next_reg, init_reg):
         hier = Hierarchical(self.proj_name, self.proj_path, self.num_layers,
@@ -185,7 +198,9 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
 
         # TODO: Do something smart so this isn't that ugly
         # If the next region starts with exit already we assume it is the exit of the upper level
-        if next_reg.startswith("exit"):
+        if cur_reg == next_reg:
+            goal_for_game = None
+        elif next_reg.startswith("exit"):
             goal_for_game = next_reg
         else:
             goal_for_game = self.exit_helper(cur_reg, next_reg)
@@ -203,7 +218,7 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
                     x for x in [self.id, cur_reg]), init_reg, goal_for_game))
             game = LocalGame(hier, self.layer - 1,
                              ".".join(x for x in [self.id, cur_reg]), init_reg,
-                             next_reg, self.listen_port)
+                             goal_for_game, self.listen_port)
         return game
 
     def exit_helper(self, fr, to):
