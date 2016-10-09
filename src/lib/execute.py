@@ -275,10 +275,10 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
         # Load automaton file
         new_strategy = self.loadAutFile(strategy_file)
 
-        if firstRun:
+        # if firstRun:
             ### Wait for the initial start command
-            logging.info("Ready.  Press [Start] to begin...")
-            self.runStrategy.wait()
+            # logging.info("Ready.  Press [Start] to begin...")
+            # self.runStrategy.wait()
 
         ### Figure out where we should start from by passing proposition assignments to strategy and search for initial state
         ### pass in sensor values, current actuator and custom proposition values, and current region object
@@ -426,11 +426,6 @@ def execute_main(listen_port=None, spec_file=None, aut_file=None, show_gui=False
     XMLRPCServerThread.start()
     logging.info("Executor listening for XML-RPC calls on http://127.0.0.1:{} ...".format(listen_port))
 
-    # Tell the parent we're ready, if there is one
-    if parent_port is not None:
-        parent_proxy = xmlrpclib.ServerProxy("http://127.0.0.1:{}".format(parent_port))
-        parent_proxy.executor_ready(listen_port)
-
     # Start the GUI if necessary
     if show_gui:
         # Create a subprocess
@@ -446,6 +441,12 @@ def execute_main(listen_port=None, spec_file=None, aut_file=None, show_gui=False
         #if aut_file is None:
         #    aut_file = spec_file.rpartition('.')[0] + ".aut"
         e.initialize(spec_file, aut_file, firstRun=True)
+
+    # Tell the parent we're ready, if there is one
+    if parent_port is not None:
+        parent_proxy = xmlrpclib.ServerProxy("http://127.0.0.1:{}".format(parent_port))
+        parent_proxy.executor_ready(listen_port)
+        e.runStrategy.set()
 
     # Start the executor's main loop in this thread
     e.run()
