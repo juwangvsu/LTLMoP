@@ -7,6 +7,7 @@ import xmlrpclib
 from SimpleXMLRPCServer import SimpleXMLRPCServer
 import threading
 from lib.execute import execute_main
+import socket
 
 from lib.specCompiler import SpecCompiler
 
@@ -146,10 +147,7 @@ class LocalGame(object):
         else:
             self.parent.handle_event("INFO",
                                      "Strategy was already synthesized")
-        try:
-            self.executor_setup()
-        except Exception as e:
-            logging.error("QHAJD: {}".format(e))
+        self.executor_setup()
 
         # Wait until the game is done
         self.game_done.wait()

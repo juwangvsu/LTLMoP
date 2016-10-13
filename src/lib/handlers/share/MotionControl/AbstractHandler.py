@@ -179,8 +179,9 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
         """
         for rname, subregs in self.executor.proj.regionMapping.iteritems():
             if name in subregs:
-                break
-        return rname
+                return rname
+        logging.error("RegionMapping didn't have our region")
+        return None
 
     def stop_local_game(self):
         """
