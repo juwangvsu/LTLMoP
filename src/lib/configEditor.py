@@ -4,6 +4,7 @@
 
 import wx, wx.richtext, wx.grid, wx.lib.intctrl
 import sys, os, re
+import logging
 
 # Climb the tree to find out where we are
 p = os.path.abspath(__file__)

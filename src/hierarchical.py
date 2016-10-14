@@ -62,7 +62,7 @@ class LocalGame(object):
         self.executor_ready_event = threading.Event()
         self.executor_port = None
 
-        self.set_init_region(initial_region)
+        # self.set_init_region(initial_region)
         self.set_goal_region(goal_region)
 
         # Get set up in executor_setup
@@ -241,11 +241,11 @@ class LocalGame(object):
 
     def handle_event(self, event_type, event_data):
         """Is called from the execute/executeStrategy on events, like borders crossed"""
-        if event_type == "POSE":
+        # if event_type == "POSE":
             # If we get a pose just pass it to the parent
-            self.parent.handle_event(event_type, event_data)
+            # self.parent.handle_event(event_type, event_data)
             # self.executor_proxy.postEvent(event_type, event_data)
-        elif event_type == "BORDER":
+        if event_type == "BORDER":
             self.current_region = event_data
             if event_data.startswith("exit"):
                 self.parent.handle_event(event_type, event_data)

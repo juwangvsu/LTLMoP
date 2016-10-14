@@ -112,6 +112,7 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
 
         if (self.current_game is not None
             ) and nreg != self.current_game.goal_region:
+            logging.info("We need to change goals")
             self.stop_local_game()
 
         # No game is running
@@ -161,8 +162,8 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
                 "eventstuff: Setting the last current region to {}, event: {}".
                 format(self.last_current_region, event_data))
 
-        elif event_type == "POSE":
-            self.pose_handler.setPose(event_data)
+        # elif event_type == "POSE":
+        #     self.pose_handler.setPose(event_data)
         else:
             self.executor.postEvent(event_type, event_data)
 

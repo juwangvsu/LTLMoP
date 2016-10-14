@@ -148,9 +148,9 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
             rfi = self.proj.rfi
 
         pose = self.hsub.coordmap_lab2map(self.hsub.getPose())
-
         region = next((i for i, r in enumerate(rfi.regions) if r.name.lower() != "boundary" and \
                         r.objectContainsPoint(*pose)), None)
+
 
         if region is None:
             logging.warning("Pose of {} not inside any region!".format(pose))
@@ -289,6 +289,7 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
 
         logging.info("Starting from initial region: " + init_region.name)
         self.post_event_hierarchical("BORDER", self.find_region_mapping(init_region.name))
+        print("Starting from initial region: " + init_region.name)
         init_prop_assignments = {"region": init_region}
 
         # initialize all sensor and actuator methods
@@ -344,7 +345,12 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
                 self.prev_z = self.strategy.current_state.goal_id
 
                 tic = self.timer_func()
-                self.runStrategyIteration()
+
+                try:
+                    self.runStrategyIteration()
+                except Exception as e:
+                    logging.error(e)
+
                 toc = self.timer_func()
 
                 #self.checkForInternalFlags()
