@@ -40,8 +40,14 @@ class RosHierarchicalLocomotionCommandHandler(
         twist = Twist()
         #Positive x is forward on robots in Gazebo
         twist.linear.x = cmd[0] * 4
+        if twist.linear.x < 0:
+            twist.linear.x = 0
+
         #Positive z is upward on robots in Gazebo
         twist.linear.z = cmd[2] * 4
+        if twist.linear.z < 0:
+            twist.linear.z = 0
+
         #Angluar z is yaw or rotation in the xy plane
         twist.angular.z = cmd[1] * 1.5
         try:

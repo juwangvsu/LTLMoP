@@ -188,11 +188,9 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
         """
         Shuts down the local game, which in turn shuts the children down
         """
-        logging.debug("Stopping local game")
         if self.current_game is not None:
             self.current_game.stop()
             self.current_game = None
-        logging.debug("Stopped local game")
 
     def create_local_game(self, cur_reg, next_reg, init_reg):
         hier = Hierarchical(self.proj_name, self.proj_path, self.num_layers,

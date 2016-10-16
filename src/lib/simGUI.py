@@ -408,7 +408,11 @@ class SimGUI_Frame(wx.Frame):
             # Executor probably crashed
             pass
 
-        self.xmlrpc_server.shutdown()
+        try:
+            self.xmlrpc_server.shutdown()
+        except socket.error:
+            pass
+
         self.XMLRPCServerThread.join()
         #time.sleep(2)
         event.Skip()

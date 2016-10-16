@@ -83,11 +83,13 @@ class LocalGame(object):
         if self.dirty:
             compiler = SpecCompiler(self.target_spec_path)
             (synthesizable, b, c) = compiler.compile()
-            if synthesizable:
-                self.dirty = False
+            if not synthesizable:
+                self.parent.handle_event("INFO", "Compilation failed")
+                logging.error("Compilation failed: {}, {}, {}".format(
+                    b, c, self.target_spec_path))
+                self.stop()
             else:
-                logging.error("Compilation went wrong: {}, {}, {}".format(
-                    b, c, self.spec_path))
+                self.dirty = False
 
     def set_init_region(self, region):
         """ Set the init region by replacing it in the specification file """

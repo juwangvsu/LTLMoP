@@ -160,6 +160,7 @@ class SpecCompiler(object):
         response = None
 
         # Create LTL using selected parser
+
         # TODO: rename decomposition object to something other than 'parser'
         if self.proj.compile_options["parser"] == "slurp":
             # default to no region tags if no simconfig is defined, so we can compile without
@@ -950,17 +951,13 @@ class SpecCompiler(object):
             logging.info("Decomposing...")
             self._decompose()
         logging.info("Writing LTL file...")
-        try:
-            spec, tb, resp = self._writeLTLFile()
-        except Exception as e:
-            logging.error(e)
+        spec, tb, resp = self._writeLTLFile()
 
         logging.info("Writing SMV file...")
         self._writeSMVFile()
 
         if tb is None:
-            logging.error("Compilation aborted")
-            return
+            return (False,False,resp)
 
         #self._checkForEmptyGaits()
 

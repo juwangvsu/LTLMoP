@@ -285,6 +285,7 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
         init_region = self.proj.rfi.regions[self._getCurrentRegionFromPose()]
         if init_region is None:
             logging.error("Initial pose not inside any region!")
+            print("Initial pose not inside any region!")
             sys.exit(-1)
 
         logging.info("Starting from initial region: " + init_region.name)
