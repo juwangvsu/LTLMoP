@@ -13,7 +13,7 @@ class RosHierarchicalInitHandler(handlerTemplates.InitHandler):
         """
         Do something
         """
-        self.offset=[0,0]
+        self.offset = [0, 0]
 
     def getSharedData(self):
         """

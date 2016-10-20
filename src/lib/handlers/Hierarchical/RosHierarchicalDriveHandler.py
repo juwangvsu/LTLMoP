@@ -11,6 +11,7 @@ using feedback linearization.
 from math import sin, cos
 import sys
 import logging
+import globalConfig
 
 import lib.handlers.handlerTemplates as handlerTemplates
 

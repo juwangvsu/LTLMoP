@@ -1034,10 +1034,10 @@ class SpecEditorFrame(wx.Frame):
         self.text_ctrl_log.Clear()
 
         # Redirect all output to the log
-        redir = RedirectText(self,self.text_ctrl_log)
+        # redir = RedirectText(self,self.text_ctrl_log)
 
-        sys.stdout = redir
-        sys.stderr = redir
+        # sys.stdout = redir
+        # sys.stderr = redir
 
         self.appendLog("Decomposing map into convex regions...\n", "BLUE")
 
@@ -1068,8 +1068,8 @@ class SpecEditorFrame(wx.Frame):
 
 
         if self.tracebackTree is None:
-            sys.stdout = sys.__stdout__
-            sys.stderr = sys.__stderr__
+            # sys.stdout = sys.__stdout__
+            # sys.stderr = sys.__stderr__
             self.appendLog("ERROR: Aborting compilation due to syntax error.\n", "RED")
             return
 
@@ -1088,8 +1088,8 @@ class SpecEditorFrame(wx.Frame):
         self.appendLog("Creating automaton...\n", "BLUE")
 
         # Disable console redirection
-        sys.stdout = sys.__stdout__
-        sys.stderr = sys.__stderr__
+        # sys.stdout = sys.__stdout__
+        # sys.stderr = sys.__stderr__
 
         # Put up a busy dialog
         busy_dialog = wx.ProgressDialog("Synthesizing...", "Please wait, synthesizing a strategy...",
@@ -1186,15 +1186,15 @@ class SpecEditorFrame(wx.Frame):
                         style = wx.OK | wx.ICON_ERROR)
             return
 
-        redir = RedirectText(self,self.text_ctrl_log)
+        # redir = RedirectText(self,self.text_ctrl_log)
 
-        sys.stdout = redir
-        sys.stderr = redir
+        # sys.stdout = redir
+        # sys.stderr = redir
 
         subprocess.Popen([sys.executable, "-u", "-m", "lib.execute", "-a", self.proj.getStrategyFilename(), "-s", self.proj.getFilenamePrefix() + ".spec"])
 
-        sys.stdout = sys.__stdout__
-        sys.stderr = sys.__stderr__
+        # sys.stdout = sys.__stdout__
+        # sys.stderr = sys.__stderr__
 
 
     def onClickEditRegions(self, event): # wxGlade: SpecEditorFrame.<event_handler>
@@ -1391,9 +1391,9 @@ class SpecEditorFrame(wx.Frame):
         self.appendLog("Running analysis...\n","BLUE")
 
         # Redirect all output to the log
-        redir = RedirectText(self, self.text_ctrl_log)
-        sys.stdout = redir
-        sys.stderr = redir
+        # redir = RedirectText(self, self.text_ctrl_log)
+        # sys.stdout = redir
+        # sys.stderr = redir
 
         try:
             (realizable, self.unsat, nonTrivial, self.to_highlight, output) = self.compiler._analyze()
@@ -1401,9 +1401,9 @@ class SpecEditorFrame(wx.Frame):
             wx.MessageBox(e.message, "Error",
                         style = wx.OK | wx.ICON_ERROR)
             return
-        finally:
-            sys.stdout = sys.__stdout__
-            sys.stderr = sys.__stderr__
+        # finally:
+            # sys.stdout = sys.__stdout__
+            # sys.stderr = sys.__stderr__
 
         # Remove lines about garbage collection from the output and remove extraenous lines
         output_lines = [line for line in output.split('\n') if line.strip() and

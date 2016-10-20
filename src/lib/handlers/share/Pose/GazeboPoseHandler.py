@@ -6,6 +6,7 @@ from tf.transformations import euler_from_quaternion
 # TODO: don't rely on gazebo
 from gazebo_msgs import srv
 import logging
+import globalConfig
 """
 =======================================
 rosPose.py - ROS Interface Pose Handler

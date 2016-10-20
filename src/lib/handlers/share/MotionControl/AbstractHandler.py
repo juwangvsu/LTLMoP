@@ -10,7 +10,6 @@ Uses the heat-controller to take a current position, current region, and destina
 from numpy import *
 import time
 
-import logging
 import lib.handlers.handlerTemplates as handlerTemplates
 from hierarchical import LocalGame, Hierarchical
 import threading
@@ -19,6 +18,8 @@ import xmlrpclib
 import socket
 import os
 import json
+import logging
+import globalConfig
 
 
 class AbstractHandler(handlerTemplates.MotionControlHandler):
@@ -122,7 +123,8 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
                 current_reg, next_reg, self.last_current_region)
             current_thread = threading.Thread(
                 target=self.current_game.run,
-                name="AbstractHandler_{}#{}".format(self.id, next_reg))
+                name="AbstractHandler_{}#{}".format(self.id, next_reg)
+            )
             current_thread.daemon = True
             current_thread.start()
 
@@ -164,6 +166,10 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
 
         # elif event_type == "POSE":
         #     self.pose_handler.setPose(event_data)
+        elif event_type == "FAIL":
+            self.executor.postEvent("INFO", "The robot couldn't reach the goal " + str(event_data))
+            logging.warning("Our child has failed us")
+            #TODO: Handle fail
         else:
             self.executor.postEvent(event_type, event_data)
 

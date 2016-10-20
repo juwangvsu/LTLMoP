@@ -16,6 +16,9 @@ import wxversion
 import wx, wx.richtext, wx.grid
 import threading
 
+import logging
+import globalConfig
+
 # Climb the tree to find out where we are
 p = os.path.abspath(__file__)
 t = ""
@@ -117,7 +120,7 @@ class SimGUI_Frame(wx.Frame):
         self.XMLRPCServerThread = threading.Thread(target=self.xmlrpc_server.serve_forever)
         self.XMLRPCServerThread.daemon = True
         self.XMLRPCServerThread.start()
-        print "SimGUI listening for XML-RPC calls on http://127.0.0.1:{} ...".format(listen_port)
+        logging.info("SimGUI listening for XML-RPC calls on http://127.0.0.1:{} ...".format(listen_port))
 
         # Register with executor for event callbacks   
         self.executorProxy.registerExternalEventTarget("http://127.0.0.1:{}".format(listen_port))

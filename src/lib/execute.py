@@ -21,6 +21,7 @@
 import sys, os, getopt, textwrap
 import threading, subprocess, time
 
+import traceback
 
 # Climb the tree to find out where we are
 p = os.path.abspath(__file__)
@@ -45,7 +46,8 @@ import math
 import traceback
 from resynthesis import ExecutorResynthesisExtensions
 from executeStrategy import ExecutorStrategyExtensions
-import globalConfig, logging
+import logging
+import globalConfig
 
 ####################
 # HELPER FUNCTIONS #
@@ -93,6 +95,7 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
         self.externalEventTargetRegistered = threading.Event()
         self.hierarchicalEventTarget = None
         self.postEventLock = threading.Lock()
+        self.postEventHierarchicalLock = threading.Lock()
         self.runStrategy = threading.Event()  # Start out paused
         self.alive = threading.Event()
         self.alive.set()
@@ -111,7 +114,7 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
                     self.externalEventTarget = None
 
     def post_event_hierarchical(self, event_type, event_data=None):
-        with self.postEventLock:
+        with self.postEventHierarchicalLock:
             if self.hierarchicalEventTarget is not None:
                 try:
                     self.hierarchicalEventTarget.handle_event(event_type, event_data)
@@ -119,6 +122,8 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
                     logging.warning("Could not send event to remote hierarchical target: %s", e)
                     logging.warning("Forcefully unsubscribing target.")
                     self.hierarchicalEventTarget = None
+            else:
+                logging.error("No hierarchical event target found, msg: (%s) %s" % (event_type, event_data))
 
     def loadSpecFile(self, filename):
         # Update with this new project
@@ -159,7 +164,6 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
 
     def shutdown(self):
         self.runStrategy.clear()
-        logging.info("QUITTING.")
 
         for h in self.hsub.handler_instance:
             if hasattr(h, "_stop"):
@@ -168,11 +172,8 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
             else:
                 logging.debug("{} does not have _stop() function".format(h.__class__.__name__))
 
-        logging.debug("Done quitting1")
         self.postEvent("CLOSE")
-        logging.debug("Done quitting2")
         self.alive.clear()
-        logging.debug("Done quitting")
 
     def pause(self):
         """ pause execution of the automaton """
@@ -198,10 +199,10 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
         self.externalEventTarget = xmlrpclib.ServerProxy(address, allow_none=True)
 
         # Redirect all output to the log
-        redir = RedirectText(self.externalEventTarget.handleEvent)
+        # redir = RedirectText(self.externalEventTarget.handleEvent)
 
-        sys.stdout = redir
-        sys.stderr = redir
+        # sys.stdout = redir
+        # sys.stderr = redir
 
         self.externalEventTargetRegistered.set()
 
@@ -210,12 +211,13 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
         Register the parent hierarchical.LocalGame
         """
         self.hierarchicalEventTarget = xmlrpclib.ServerProxy(address, allow_none=True)
+        logging.info("Registering the hierarchical event target %s" % address)
 
         # Redirect all output to the log
-        redir = RedirectText(self.hierarchicalEventTarget.handle_event)
+        # redir = RedirectText(self.hierarchicalEventTarget.handle_event)
 
-        sys.stdout = redir
-        sys.stderr = redir
+        # sys.stdout = redir
+        # sys.stderr = redir
 
     def initialize(self, spec_file, strategy_file, firstRun=True):
         """
@@ -255,6 +257,8 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
             logging.info("Instantiate all handlers...")
             self.hsub.instantiateAllHandlers()
 
+            self.postEvent("INFO","All handlers initialized")
+
             logging.info("Preparing proposition mapping...")
             self.hsub.prepareMapping()
         else:
@@ -272,7 +276,7 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
 
         if firstRun:
             # Wait for the initial start command
-            logging.info("Ready.  Press [Start] to begin...")
+            # logging.info("Ready.  Press [Start] to begin...")
             time.sleep(.5)
             self.runStrategy.set()
             # self.runStrategy.wait()
@@ -282,15 +286,19 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
 
         ## Region
         # FIXME: make getcurrentregion return object instead of number, also fix the isNone check
-        init_region = self.proj.rfi.regions[self._getCurrentRegionFromPose()]
+        logging.info("Getting current region")
+        cur_reg = self._getCurrentRegionFromPose()
+        if cur_reg is None:
+            logging.error("Couldn't get a pose")
+            sys.exit(-1)
+
+        init_region = self.proj.rfi.regions[cur_reg]
         if init_region is None:
             logging.error("Initial pose not inside any region!")
             print("Initial pose not inside any region!")
             sys.exit(-1)
 
         logging.info("Starting from initial region: " + init_region.name)
-        self.post_event_hierarchical("BORDER", self.find_region_mapping(init_region.name))
-        print("Starting from initial region: " + init_region.name)
         init_prop_assignments = {"region": init_region}
 
         # initialize all sensor and actuator methods
@@ -368,10 +376,6 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
                 self.postEvent("FREQ", int(math.ceil(avg_freq)))
                 pose = self.hsub.getPose(cached=True)[0:2]
                 self.postEvent("POSE", tuple(map(int, self.hsub.coordmap_lab2map(pose))))
-
-                if self.hierarchicalEventTarget is not None:
-                    self.post_event_hierarchical("POSE", tuple(map(int, self.hsub.coordmap_lab2map(pose))))
-
 
                 last_gui_update_time = self.timer_func()
             except Exception as e:

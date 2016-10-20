@@ -1,9 +1,9 @@
 #!/usr/bin/env python
-# -*- coding: UTF-8 -*-
 
 import re
 import strategy
 import logging
+import globalConfig
 import sys
 import time
 from collections import defaultdict

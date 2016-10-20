@@ -8,8 +8,8 @@
 """
 import re
 import logging
-from collections import OrderedDict
 import globalConfig
+from collections import OrderedDict
 
 class Handler(object):
     """

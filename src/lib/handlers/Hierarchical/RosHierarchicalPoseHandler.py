@@ -10,6 +10,8 @@ import rospy
 import time
 from tf import TransformListener, ExtrapolationException
 from tf.transformations import euler_from_quaternion
+import logging
+import globalConfig
 
 
 class RosHierarchicalPoseHandler(handlerTemplates.PoseHandler):
@@ -17,7 +19,7 @@ class RosHierarchicalPoseHandler(handlerTemplates.PoseHandler):
         """
         Pose Handler for ROS and gazebo.
 
-        modelName (str): The model name of the robot in gazebo to get the pose information from (default="turtlebot")
+        modelName (str): The model name of the robot in gazebo to get the pose information from (default="mobile_base")
         """
 
         #GetModelState expects the arguments model_name and relative_entity_name
@@ -26,28 +28,40 @@ class RosHierarchicalPoseHandler(handlerTemplates.PoseHandler):
         self.relative_entity_name = 'world'  #implies the gazebo global coordinates
         self.last_pose = None
 
-        rospy.init_node('PoseHandler')
+        try:
+            rospy.init_node(
+                'PoseHandler', anonymous=True, disable_signals=True)
+
+            # we need to reload logging, because rospy.init_node changes it...
+            logging.shutdown()
+            reload(logging)
+            reload(globalConfig)
+        except:
+            logging.warning("Rospy node already initialized")
         self.tf = TransformListener()
         self.shared_data = shared_data['ROS_INIT_HANDLER']
-        self.getPose()
+        self.executor = executor
+        executor.postEvent("INFO", "Pose initialized")
 
     def getPose(self, cached=False):
         success = False
         while not success:
             try:
-                if self.tf.frameExists('/base_link') and self.tf.frameExists('/map'):
+                if self.tf.frameExists('/base_link') and self.tf.frameExists(
+                        '/map'):
                     # t = self.tf.getLatestCommonTime('/base_link', '/map')
                     # t = rospy.Time.now()
                     t = rospy.Time(0)
-                    position, quaternion = self.tf.lookupTransform('/base_link',
-                                                                '/map', t)
-                    success = True
+                    position, quaternion = self.tf.lookupTransform(
+                        '/map', '/base_link', t)
 
                     angles = euler_from_quaternion(quaternion)
                     theta = angles[2]
 
                     self.last_pose = [position[0], position[1], theta]
-                    print self.last_pose
                     return self.last_pose
-            except ExtrapolationException:
+                else:
+                    time.sleep(0.5)
+            except ExtrapolationException as e:
+                self.executor.postEvent("INFO", "Couldn't get pose, please wait %s" % (e))
                 time.sleep(0.1)

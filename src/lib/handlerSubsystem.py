@@ -26,11 +26,13 @@ import time
 import fileMethods
 from copy import deepcopy
 import project
-import globalConfig, logging
 from hsubConfigObjects import MethodParameterConfig,HandlerMethodConfig,\
                                 HandlerConfig,RobotConfig,ExperimentConfig
 import handlers.handlerTemplates as ht
 from hsubParsingUtils import parseCallString
+
+import logging
+import globalConfig
 
 # TODO: Get rid of this todo list
 # TODO: Move testing code to doctest
@@ -486,7 +488,7 @@ class HandlerSubsystem:
             try:
                 h = handler_class(**arg_dict)
             except Exception:
-                logging.exception("Failed during handler {} instantiation".format(handler_module_path))
+                logging.error("Failed during handler {} instantiation".format(handler_module_path))
             else:
                 self.handler_instance.append(h)
         return h

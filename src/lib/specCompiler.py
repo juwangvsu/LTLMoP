@@ -6,7 +6,6 @@ import subprocess
 import numpy
 import glob
 import StringIO
-import logging
 
 from multiprocessing import Pool
 
@@ -23,6 +22,9 @@ import handlerSubsystem
 from asyncProcesses import AsynchronousProcessThread
 
 import strategy
+
+import logging
+import globalConfig
 
 # Hack needed to ensure there's only one
 _SLURP_SPEC_GENERATOR = None

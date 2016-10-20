@@ -1,6 +1,7 @@
 import sys, os, random
 import subprocess
 import logging
+import globalConfig
 import fileinput
 import re
 import xmlrpclib
@@ -252,8 +253,9 @@ class LocalGame(object):
             if event_data.startswith("exit"):
                 self.parent.handle_event(event_type, event_data)
                 self.game_done.set()
-            else:
-                self.parent.handle_event(event_type, event_data)
+        else:
+            logging.debug("Got something else: (%s) %s" % (event_type, event_data))
+            self.parent.handle_event(event_type, event_data)
 
 
 # HELPERS

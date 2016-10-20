@@ -18,10 +18,11 @@ from copy import deepcopy
 import ast
 import json
 import traceback
-import globalConfig, logging
 import importlib
 import handlers.handlerTemplates as ht
 from hsubParsingUtils import parseCallString
+import logging
+import globalConfig
 
 
 ###################################################

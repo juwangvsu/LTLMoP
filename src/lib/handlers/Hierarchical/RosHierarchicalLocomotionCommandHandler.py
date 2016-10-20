@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import rospy, math, subprocess, os, sys
 import logging
+import globalConfig
 
 from geometry_msgs.msg import Twist
 """
@@ -28,11 +29,12 @@ class RosHierarchicalLocomotionCommandHandler(
             rospy.init_node('RosLocoHandler', anonymous=True, disable_signals=True)
             #open a publisher for the base controller of the robot
             # TODO: queue size okay?
-            self.pub = rospy.Publisher(velocityTopic, Twist, queue_size=10)
-            # for the pr2, use /base_controller/command
-            # the turtlebot takes /cmd_vel
         except Exception as e:
-            logging.error('Problem setting up Locomotion Command Node: ' + str(e))
+            logging.warning('Rospy node already initialized')
+
+        self.pub = rospy.Publisher(velocityTopic, Twist, queue_size=10)
+        # for the pr2, use /base_controller/command
+        # the turtlebot takes /cmd_vel
 
     def sendCommand(self, cmd):
         #Twist is the message type and consists of x,y,z linear velocities
@@ -53,5 +55,5 @@ class RosHierarchicalLocomotionCommandHandler(
         try:
             #Publish the command to the robot
             self.pub.publish(twist)
-        except:
-            print 'Error publishing Twist Command'
+        except Exception as e :
+            print 'Error publishing Twist Command', e

@@ -1,6 +1,7 @@
 import fsa
 import sys
 import logging,random
+import globalConfig
 import project
 
 class ExecutorStrategyExtensions(object):
@@ -15,6 +16,7 @@ class ExecutorStrategyExtensions(object):
         self.next_state      = None
         self.current_region  = None
         self.next_region     = None
+        self.arrived         = False
 
     def updateOutputs(self, state=None):
         """
