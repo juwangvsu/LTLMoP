@@ -33,8 +33,9 @@ class RosHierarchicalPoseHandler(handlerTemplates.PoseHandler):
                 'PoseHandler', anonymous=True, disable_signals=True)
 
             # we need to reload logging, because rospy.init_node changes it...
-            logging.shutdown()
-            reload(logging)
+            root = logging.getLogger()
+            map(root.removeHandler, root.handlers[:])
+            map(root.removeFilter, root.filters[:])
             reload(globalConfig)
         except:
             logging.warning("Rospy node already initialized")
@@ -63,5 +64,6 @@ class RosHierarchicalPoseHandler(handlerTemplates.PoseHandler):
                 else:
                     time.sleep(0.5)
             except ExtrapolationException as e:
-                self.executor.postEvent("INFO", "Couldn't get pose, please wait %s" % (e))
+                self.executor.postEvent(
+                    "INFO", "Couldn't get pose, please wait %s" % (e))
                 time.sleep(0.1)

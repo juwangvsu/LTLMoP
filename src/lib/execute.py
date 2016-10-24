@@ -159,6 +159,7 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
 
         if region is None:
             logging.warning("Pose of {} not inside any region!".format(pose))
+        self.postEvent("INFO", "Pose is not inside of any region")
 
         return region
 
@@ -286,7 +287,6 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
 
         ## Region
         # FIXME: make getcurrentregion return object instead of number, also fix the isNone check
-        logging.info("Getting current region")
         cur_reg = self._getCurrentRegionFromPose()
         if cur_reg is None:
             logging.error("Couldn't get a pose")
