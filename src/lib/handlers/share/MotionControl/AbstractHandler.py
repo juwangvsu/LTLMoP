@@ -20,6 +20,8 @@ import os
 import json
 import logging
 import globalConfig
+import re
+import regions
 
 
 class AbstractHandler(handlerTemplates.MotionControlHandler):
@@ -43,10 +45,10 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
         if len(thingys) > 2:
             self.id = thingys[2].split("#")[0]
         else:
-            self.id = "0"
+            self.id = None
 
-        self.pose_handler = executor.hsub.getHandlerInstanceByType(
-            handlerTemplates.PoseHandler)
+        # self.pose_handler = executor.hsub.getHandlerInstanceByType(
+        #     handlerTemplates.PoseHandler)
         self.fwd_coordmap = executor.hsub.coordmap_map2lab
         self.rfi = executor.proj.rfi
         self.executor = executor
@@ -57,12 +59,15 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
         # will be the path to initial region of the lower level
         self.last_current_region = ".".join(initial_region.split(".")[1:])
 
+        # Only needed for basicSim for the next initial regions
         with open(self.proj_path + "mappings.json") as f:
             self.mappings = json.load(f)
 
         self.listen_port = None
         self.xmlrpc_server_thread = None
         self.setup_xmlrpc()
+        self.cur_reg = None
+        self.current_goal = None
 
     def setup_xmlrpc(self):
         """
@@ -94,37 +99,44 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
         """
         current_reg = self.find_region_mapping(self.rfi.regions[current_reg]
                                                .name)
+        self.cur_reg = current_reg
         next_reg = self.find_region_mapping(self.rfi.regions[next_reg].name)
+
+        # if self.need_exits:
+        #     self.exits = self.find_exit_child(next_reg)
+        #     self.need_exits = False
+        #     logging.error(self.exits)
 
         if self.arrived:
             # We seem to have arrived, so return true and stop the current game
             self.arrived = False
             if self.current_game is not None:
                 self.stop_local_game()
+            # self.need_exits = True
             return True
 
-        # We need to go somewhere else and a game is running
-        if next_reg.startswith("exit"):
-            nreg = next_reg
-        elif current_reg == next_reg:
+        # We should stay in this Building/Room
+        if current_reg == next_reg:
             nreg = None
         else:
-            nreg = self.exit_helper(current_reg, next_reg)
+            nreg = next_reg
 
+        # We need to go somewhere else and a game is running
         if (self.current_game is not None
-            ) and nreg != self.current_game.goal_region:
-            logging.info("We need to change goals")
+            ) and nreg != self.current_goal:
+            logging.info("We need to change goals from %s to %s" %
+                         (self.current_goal, nreg))
             self.stop_local_game()
 
         # No game is running
         if not self.current_game:
+            self.current_goal = nreg
             self.arrived = False
             self.current_game = self.create_local_game(
-                current_reg, next_reg, self.last_current_region)
+                current_reg, nreg, self.last_current_region)
             current_thread = threading.Thread(
                 target=self.current_game.run,
-                name="AbstractHandler_{}#{}".format(self.id, next_reg)
-            )
+                name="AbstractHandler_{}#{}".format(self.id, next_reg))
             current_thread.daemon = True
             current_thread.start()
 
@@ -134,14 +146,14 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
         """
         Gets called if an event happened that is of interest
         """
-        if event_type == "STATE":
-            # If the state changes, stop the current game and create a new one
-            (current_region, next_region) = event_data
-            logging.info("STATE: {}".format(event_data))
-        elif event_type == "BORDER":
+        # if event_type == "STATE":
+        #     # If the state changes, stop the current game and create a new one
+        #     (current_region, next_region) = event_data
+        #     logging.info("STATE: {}".format(event_data))
+        if event_type == "BORDER":
+            # Only needed for BasicSim?
             logging.info("Borders crossed in MotionHandler to:{}".format(
                 event_data))
-
             # We got to an exit, get the next region from it
             if event_data.startswith("exit"):
                 if self.is_toplevel():
@@ -163,13 +175,14 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
             logging.info(
                 "eventstuff: Setting the last current region to {}, event: {}".
                 format(self.last_current_region, event_data))
-
-        # elif event_type == "POSE":
-        #     self.pose_handler.setPose(event_data)
         elif event_type == "FAIL":
-            self.executor.postEvent("INFO", "The robot couldn't reach the goal " + str(event_data))
+            self.executor.postEvent(
+                "INFO", "The robot couldn't reach the goal " + str(event_data))
             logging.warning("Our child has failed us")
             #TODO: Handle fail
+            # if event_data.startswith("exit"):
+                # Failed getting to an exit, remove it from the list and use the next one
+                # self.remove_exit(event_data)
         else:
             self.executor.postEvent(event_type, event_data)
 
@@ -198,63 +211,73 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
             self.current_game.stop()
             self.current_game = None
 
-    def create_local_game(self, cur_reg, next_reg, init_reg):
+    def create_local_game(self, cur_reg, next_region, init_reg):
         hier = Hierarchical(self.proj_name, self.proj_path, self.num_layers,
                             self.last_current_region)
 
-        # TODO: Do something smart so this isn't that ugly
-        # If the next region starts with exit already we assume it is the exit of the upper level
-        if cur_reg == next_reg:
-            goal_for_game = None
-        elif next_reg.startswith("exit"):
-            goal_for_game = next_reg
-        else:
-            goal_for_game = self.exit_helper(cur_reg, next_reg)
+        # TODO: no longer needed, since we're doing it in the localgame?
+        # if next_region.startswith("exit"):
+        #     nreg = [next_region]
+        # elif next_region is None:
+        #     nreg = None
+        # else:
+        #     exits = self.find_exit_child(next_region)
+        #     nreg = [x.name for x in exits]
 
-        # Check if we're the top level
-        if self.is_toplevel():
-            logging.info("Creating a local game: {}, {} {} {}".format(
-                self.layer - 1, cur_reg, init_reg, next_reg))
-            game = LocalGame(hier, self.layer - 1, cur_reg, init_reg,
-                             goal_for_game, self.listen_port)
-        else:
-            # If not, create the id by appending the current region to our id
-            logging.info("Creating a local game: {}, {} {} {}".format(
-                self.layer - 1, ".".join(
-                    x for x in [self.id, cur_reg]), init_reg, goal_for_game))
-            game = LocalGame(hier, self.layer - 1,
-                             ".".join(x for x in [self.id, cur_reg]), init_reg,
-                             goal_for_game, self.listen_port)
+        logging.info("Creating a local game: {}, {} {} {}".format(
+            self.layer - 1, ".".join(s for s in [self.id, cur_reg]
+                                     if s), init_reg, next_region))
+        # The new ID will be the current id appended with the current region, if
+        # we're not on the highest level
+        game = LocalGame(hier, self.layer - 1,
+                         ".".join(s for s in [self.id, cur_reg] if s),
+                         next_region, init_reg, self.listen_port)
         return game
 
     def exit_helper(self, fr, to):
-
         return "exit.{}.{}_{}".format(self.layer - 1, fr, to)
 
     def is_toplevel(self):
-        return self.id == "0"
+        return self.id == None
 
-    # def find_exit(self, level, from_, to):
-    #     for rname, subregs in self.executor.proj.regionMapping.iteritems():
-    #         logging.error(rname)
-    #         if not rname.startswith("exit"):
-    #             continue
-    #         if rname.startswith("exit." + str(level) + "." + from_ + "_" + to):
-    #             logging.error("FOUND IT" + rname)
-    #             return rname
-    #         logging.error("rname doesn't start with " + "exit." + str(level) + "." + from_ + "_" + to + "|||" + rname)
-    #     return None
+    def find_exit_child(self, to):
+        """
+        Load the regions of the level below and return the list of exits
+        so we can choose another one if the first one is blocked.
+        """
+        rfi = regions.RegionFileInterface()
+        # self.id might be None, so throw it out
+        reg_path = "{}{}.{}.{}.regions".format(
+            self.proj_path, self.proj_name, self.layer - 1, ".".join(
+                s for s in [self.id, self.cur_reg] if s))
+        rfi.readFile(reg_path)
+        exits = []
+        pattern = "exit.{}.{}_{}".format(str(self.layer - 1), self.cur_reg, to)
+        for reg in rfi.regions:
+            if reg.name.startswith(pattern):
+                exits.append(reg)
+        return exits
+
+    def remove_exit(self, name):
+        """
+        Removes the exit with name `name`, if it was in the list
+        """
+        logging.debug("Exits before: %s" % str(self.exits))
+        for i, o in enumerate(self.exits):
+            if o.name == name:
+                del self.exits[i]
+                break
+
+        logging.debug("Exits after: %s" % str(self.exits))
 
 
-def exit_string(str):
+exit_regex = re.compile(
+    "exit\.(?P<level>.+?)\.(?P<from>.+?)_(?P<to>.+?)(#.*)?", re.I)
+
+
+def regions_from_exit(ex_region):
     """
-    exit.level.from_to
+    Matches the given string against the exit regex and returns a tuple of two regions (from, to)
     """
-    splits = str.split(".")
-    return (splits[0], splits[1], splits[2])
-
-
-def swap_exit(str):
-    (ex, level, from_to) = exit_string(str)
-    (fr, to) = from_to.split("_")
-    return "exit.{}.{}_{}".format(level, to, fr)
+    m = exit_regex.match(ex_region)
+    return (m.group('level'), m.group('from'), m.group('to'))

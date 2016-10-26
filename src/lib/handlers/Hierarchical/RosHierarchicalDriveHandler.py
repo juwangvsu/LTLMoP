@@ -33,7 +33,6 @@ class RosHierarchicalDriveHandler(handlerTemplates.DriveHandler):
         self.d = d
 
     def setVelocity(self, x, y, theta=0, z = 0):
-        logging.error("DRIVE")
         #print "VEL:%f,%f" % tuple(self.coordmap([x, y]))
 
         # Feedback linearization code:

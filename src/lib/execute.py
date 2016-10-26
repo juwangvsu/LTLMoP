@@ -337,49 +337,43 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
 
         # FIXME: don't crash if no spec file is loaded initially
         while self.alive.isSet():
-            try:
-                # Idle if we're not running
-                if not self.runStrategy.isSet():
-                    self.hsub.setVelocity(0,0)
+            # Idle if we're not running
+            if not self.runStrategy.isSet():
+                self.hsub.setVelocity(0,0)
 
-                    # wait for either the FSA to unpause or for termination
-                    while (not self.runStrategy.wait(0.1)) and self.alive.isSet():
-                        pass
+                # wait for either the FSA to unpause or for termination
+                while (not self.runStrategy.wait(0.1)) and self.alive.isSet():
+                    pass
 
-                # Exit immediately if we're quitting
-                if not self.alive.isSet():
-                    break
+            # Exit immediately if we're quitting
+            if not self.alive.isSet():
+                break
 
-                self.prev_outputs = self.strategy.current_state.getOutputs()
-                self.prev_z = self.strategy.current_state.goal_id
+            self.prev_outputs = self.strategy.current_state.getOutputs()
+            self.prev_z = self.strategy.current_state.goal_id
 
-                tic = self.timer_func()
+            tic = self.timer_func()
 
-                try:
-                    self.runStrategyIteration()
-                except Exception as e:
-                    logging.error(e)
+            self.runStrategyIteration()
 
+            toc = self.timer_func()
+
+            #self.checkForInternalFlags()
+
+            # Rate limiting of execution and GUI update
+            while (toc - tic) < 0.05:
+                time.sleep(0.005)
                 toc = self.timer_func()
 
-                #self.checkForInternalFlags()
+            # Update GUI
+            # If rate limiting is disabled in the future add in rate limiting here for the GUI:
+            # if show_gui and (timer_func() - last_gui_update_time > 0.05)
+            avg_freq = 0.9 * avg_freq + 0.1 * 1 / (toc - tic) # IIR filter
+            self.postEvent("FREQ", int(math.ceil(avg_freq)))
+            pose = self.hsub.getPose(cached=True)[0:2]
+            self.postEvent("POSE", tuple(map(int, self.hsub.coordmap_lab2map(pose))))
 
-                # Rate limiting of execution and GUI update
-                while (toc - tic) < 0.05:
-                    time.sleep(0.005)
-                    toc = self.timer_func()
-
-                # Update GUI
-                # If rate limiting is disabled in the future add in rate limiting here for the GUI:
-                # if show_gui and (timer_func() - last_gui_update_time > 0.05)
-                avg_freq = 0.9 * avg_freq + 0.1 * 1 / (toc - tic) # IIR filter
-                self.postEvent("FREQ", int(math.ceil(avg_freq)))
-                pose = self.hsub.getPose(cached=True)[0:2]
-                self.postEvent("POSE", tuple(map(int, self.hsub.coordmap_lab2map(pose))))
-
-                last_gui_update_time = self.timer_func()
-            except Exception as e:
-                logging.error(e)
+            last_gui_update_time = self.timer_func()
 
         logging.debug("execute.py quitting...")
 

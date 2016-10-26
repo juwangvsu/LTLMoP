@@ -487,8 +487,8 @@ class HandlerSubsystem:
             # instantiate the handler
             try:
                 h = handler_class(**arg_dict)
-            except Exception:
-                logging.error("Failed during handler {} instantiation".format(handler_module_path))
+            except Exception as e:
+                logging.error("Failed during handler {} instantiation: {}".format(handler_module_path, e))
             else:
                 self.handler_instance.append(h)
         return h

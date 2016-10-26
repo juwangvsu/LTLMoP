@@ -64,6 +64,6 @@ class RosHierarchicalPoseHandler(handlerTemplates.PoseHandler):
                 else:
                     time.sleep(0.5)
             except ExtrapolationException as e:
-                self.executor.postEvent(
-                    "INFO", "Couldn't get pose, please wait %s" % (e))
+                # self.executor.postEvent(
+                #     "INFO", "Couldn't get pose, please wait %s" % (e))
                 time.sleep(0.1)
