@@ -325,7 +325,9 @@ class LocalGame(object):
         Returns a list of strings with the names of regions to go to
         """
         # In case it is an upper level exit, keep it
-        if goal.startswith("exit"):
+        if not goal:
+            return None
+        elif goal.startswith("exit"):
             return [goal]
         # Else search for all exits to that region
         else:
