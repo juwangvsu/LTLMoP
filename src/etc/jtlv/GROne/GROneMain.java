@@ -224,7 +224,7 @@ public class GROneMain {
 
             // TODO: make the counterstrat aut have a distinct filename?
             // TODO: enable BDD export of counterstrat too
-			out_filename = out_filename_base + ".aut";
+			out_filename = out_filename_base + "_counterstrategy.aut";
 
             PrintStream orig_out = System.out;
             System.setOut(new PrintStream(new File(out_filename))); // writing the output to a file

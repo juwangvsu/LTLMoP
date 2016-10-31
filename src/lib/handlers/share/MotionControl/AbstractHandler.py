@@ -34,7 +34,8 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
         self.num_layers = num_layers
 
         # TODO: Don't allow "." in the file name other than those seperators
-        self.layer = int(executor.proj.getFilenamePrefix().split(".")[1])
+        prefix = executor.proj.getFilenamePrefix().split("#")[0]
+        self.layer = int(prefix.split(".")[1])
 
         thingys = executor.proj.getFilenamePrefix().split(".", 2)
 
@@ -120,8 +121,7 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
             nreg = next_reg
 
         # We need to go somewhere else and a game is running
-        if (self.current_game is not None
-            ) and nreg != self.current_goal:
+        if (self.current_game is not None) and nreg != self.current_goal:
             logging.info("We need to change goals from %s to %s" %
                          (self.current_goal, nreg))
             self.stop_local_game()
@@ -173,14 +173,14 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
             logging.info(
                 "eventstuff: Setting the last current region to {}, event: {}".
                 format(self.last_current_region, event_data))
-        elif event_type == "FAIL":
+        elif event_type == "UNSYNTH":
+            # From lower level, it was unsynthesizable, try to reorder
             self.executor.postEvent(
-                "INFO", "The robot couldn't reach the goal " + str(event_data))
+                "INFO", "The robot couldn't reach the goal " +
+                self.current_goal + " because of " + str(event_data))
             logging.warning("Our child has failed us")
-            #TODO: Handle fail
-            # if event_data.startswith("exit"):
-                # Failed getting to an exit, remove it from the list and use the next one
-                # self.remove_exit(event_data)
+            self.executor.post_event_hierarchical(event_type, self.current_goal)
+
         else:
             self.executor.postEvent(event_type, event_data)
 
@@ -230,6 +230,13 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
         game = LocalGame(hier, self.layer - 1,
                          ".".join(s for s in [self.id, cur_reg] if s),
                          next_region, init_reg, self.listen_port)
+        return game
+
+    def create_toplevel_game(self):
+        hier = Hierarchical(self.proj_name, self.proj_path, self.num_layers,
+                            self.last_current_region)
+        game = LocalGame(hier, self.layer, self.id, None, None,
+                         self.listen_port)
         return game
 
     def exit_helper(self, fr, to):

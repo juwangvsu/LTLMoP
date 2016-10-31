@@ -1,6 +1,4 @@
 import sys, os, random
-import logging
-import globalConfig
 import fileinput
 import re
 import xmlrpclib
@@ -11,6 +9,8 @@ import socket
 import hashlib
 import regions
 
+import logging
+import lib.globalConfig
 from lib.specCompiler import SpecCompiler
 
 # Climb the tree to find out where we are
@@ -21,6 +21,9 @@ while t != "src":
     if p == "":
         print "I have no idea where I am; this is ridiculous"
         sys.exit(1)
+
+sys.path.append(os.path.join(p, "src", "lib"))
+sys.path.append(os.path.join(p, "lib", "cores"))
 
 goal_regex = re.compile("^(?P<spec>(Go to ))(?P<region>.*)", re.I)
 
@@ -48,8 +51,14 @@ class LocalGame(object):
         self.proj = project  # Reference to Hierarchical, not an LTLMoP project
         self.level = level
         self.id = id
-        self.region = id.split(".")[-1]  # the region we represent
-        self.path_prefix = path_helper(project.path, project.name, level, id)
+        if self.id is not None:
+            self.region = id.split(".")[-1]  # the region we represent
+            self.path_prefix = path_helper(project.path, project.name, level,
+                                           id)
+        else:
+            self.region = None
+            self.path_prefix = project.path + project.name + "." + level
+
         self.spec_path = self.path_prefix + ".spec"
         self.region_path = self.path_prefix + ".regions"
         self.had_changes = threading.Event()
@@ -59,6 +68,10 @@ class LocalGame(object):
 
         # Get the text from the spec and remove empty lines
         self.spec_list = list(self.compiler.specText.splitlines(True))
+        # Make sure the last line has a newline as well, since we will
+        # need it when reordering
+        if not self.spec_list[-1].endswith("\n"):
+            self.spec_list[-1] = self.spec_list[-1] + "\n"
 
         self.current_region = initial_region
 
@@ -69,13 +82,10 @@ class LocalGame(object):
         self.executor_ready_event = threading.Event()
         self.executor_port = None
 
-        # self.set_init_region(initial_region)
+        self.set_init_region(initial_region)
         self.strat_path = None  # Gets set in write_spec_file()
         self.target_spec_path = None
         self.write_spec_file()
-
-        # If there is an automaton file we assume it was synthesized already
-        self.dirty = not os.path.isfile(self.strat_path)
 
         # Get set up in executor_setup
         self.executor_proxy = None
@@ -95,19 +105,19 @@ class LocalGame(object):
         Synthesize the current specification.
         Returns `True` if it was synthesizable, `False` otherwise
         """
-        if self.dirty:
+        if self.is_dirty():
             compiler = SpecCompiler(self.target_spec_path)
             (synthesizable, b, msg) = compiler.compile()
             if not synthesizable:
-                self.parent.handle_event("INFO", "Compilation failed")
+                self.post_event_parent("INFO", "Compilation failed")
                 logging.error("Compilation failed: {}, {}, {}".format(
                     b, msg, self.target_spec_path))
-                self.parent.handle_event("INFO", "We can't get to %s, log: %s"
-                                         % (self.goal_region, msg))
+                self.post_event_parent("INFO", "We can't get to %s, log: %s" %
+                                       (self.goal_region, msg))
+                self.post_event_parent("UNSYNTH", str(self.goal_region))
                 self.stop()
                 return False
             else:
-                self.dirty = False
                 return True
 
     def set_init_region(self, region):
@@ -144,7 +154,6 @@ class LocalGame(object):
         """
         index = None
         for i, line in enumerate(self.spec_list):
-            logging.debug(line)
             match = goal_regex.match(line)
             if match:
                 index = i
@@ -174,6 +183,7 @@ class LocalGame(object):
         self.compiler.proj.specText = text
         self.compiler.proj.writeSpecFile(self.target_spec_path)
 
+        self.game_done.clear()
         # with open(self.target_spec_path, 'w') as output:
         #     for line in self.spec_list:
         #         output.write(line)
@@ -191,16 +201,16 @@ class LocalGame(object):
             self.had_changes.clear()
 
             # Set up xmlrpc
-            if self.dirty:
-                self.parent.handle_event(
+            if self.is_dirty():
+                self.post_event_parent(
                     "INFO", "Starting to synthesize with goal %s..." %
                     self.goal_region)
                 if not self.synthesize():
                     break
-                self.parent.handle_event("INFO", "Done synthesizing")
+                self.post_event_parent("INFO", "Done synthesizing")
             else:
-                self.parent.handle_event("INFO",
-                                         "Strategy was already synthesized")
+                self.post_event_parent("INFO",
+                                       "Strategy was already synthesized")
             self.executor_setup()
 
             # Wait until the game is done
@@ -258,6 +268,7 @@ class LocalGame(object):
         self.executor_proxy.postEvent(
             "INFO", "Game on level {}: {} {} {}".format(
                 self.level, self.id, self.current_region, self.goal_region))
+        self.game_done.clear()
 
     def pause(self):
         self.executor_proxy.pause()
@@ -270,13 +281,16 @@ class LocalGame(object):
             self.executor_proxy.shutdown()
 
         logging.debug("Shutting down serv")
-        self.serv.shutdown()
-        self.serv.server_close()
+        if self.serv:
+            self.serv.shutdown()
+            self.serv.server_close()
 
         logging.debug("Waiting for xmlrpc_server_thread")
-        self.xmlrpc_server_thread.join()
+        if self.xmlrpc_server_thread:
+            self.xmlrpc_server_thread.join()
         logging.info("Waiting for the execution thread to finish")
-        self.exec_thread.join()
+        if self.exec_thread:
+            self.exec_thread.join()
         logging.info("Local game shut down")
 
     def find_current_config(self):
@@ -304,12 +318,12 @@ class LocalGame(object):
         """Is called from the execute/executeStrategy on events, like borders crossed"""
         # if event_type == "POSE":
         # If we get a pose just pass it to the parent
-        # self.parent.handle_event(event_type, event_data)
+        # self.post_event_parent(event_type, event_data)
         # self.executor_proxy.postEvent(event_type, event_data)
         if event_type == "BORDER":
             self.current_region = event_data
             if event_data.startswith("exit"):
-                self.parent.handle_event(event_type, event_data)
+                self.post_event_parent(event_type, event_data)
                 self.game_done.set()
         elif event_type == "FAIL":
             # We couldn't move somewhere, so try to avoid the region
@@ -317,18 +331,27 @@ class LocalGame(object):
             # If it was an exit, tell our parent that we can't go to that region
             # TODO: in case we allow multiple exits, find another exit first and set it as goal
             # (level, fr, to) = regions_from_exit(event_data)
-            # self.parent.handle_event("FAIL", to)
-            #     self.parent.handle_event("FAIL", event_data)
+            # self.post_event_parent("FAIL", to)
+            #     self.post_event_parent("FAIL", event_data)
             # else:
             logging.warning("We can't go to {}, so try to avoid it".format(
                 event_data))
             self.avoid_region(event_data)
-
+            self.write_spec_file()
+        elif event_type == "UNSYNTH":
+            logging.warning("We couldn't go to {}, so try to go there later".
+                            format(event_data))
+            self.executor_proxy.postEvent(
+                "INFO",
+                "We couldn't go to {}, so try to go there later".format(
+                    event_data))
+            self.move_to_end(event_data)
+            self.write_spec_file()
             self.game_done.set()
         else:
             logging.debug("Got something else: (%s) %s" %
                           (event_type, event_data))
-            self.parent.handle_event(event_type, event_data)
+            self.post_event_parent(event_type, event_data)
 
     def get_goal_region(self, goal):
         """
@@ -341,7 +364,6 @@ class LocalGame(object):
             return [goal]
         # Else search for all exits to that region
         else:
-            logging.warning([x.name for x in self.find_exits(goal)])
             return [x.name for x in self.find_exits(goal)]
 
     def find_exits(self, goal):
@@ -361,11 +383,37 @@ class LocalGame(object):
         and gets visited last.
         Changes specification
         """
-        return
+        index = None
+        self.had_changes.set()
+
+        for i, line in enumerate(self.spec_list):
+            if "visit " + region in line:
+                index = i
+        if index:
+            self.spec_list.insert(
+                len(self.spec_list), self.spec_list.pop(index))
+        else:
+            logging.warning("Region we wanted to reorder not found")
 
     def sha1_of_spec(self):
+        """
+        Hashes `self.spec_list` and returns its hexdigest
+        """
         text = "\n".join(self.spec_list)
         return hashlib.sha1(text).hexdigest()
+
+    def post_event_parent(self, event_type, event_data):
+        if self.parent is not None:
+            self.parent.handle_event(event_type, event_data)
+
+    def is_toplevel(self):
+        return self.id is None
+
+    def is_dirty(self):
+        """
+        Check if there is an automaton for the current specification already
+        """
+        return not os.path.isfile(self.strat_path)
 
 
 # HELPERS
@@ -400,3 +448,21 @@ def regions_from_exit(ex_region):
 def sha1_of_file(path):
     with open(path, 'rb') as f:
         return hashlib.sha1(f.read()).hexdigest()
+
+
+def main(spec_path):
+    try:
+        (root, filename) = os.path.split(spec_path)
+        (name, level, ext) = filename.split(".")
+        hier = Hierarchical(name, root + '/', level, "1")
+        game = LocalGame(hier, level, None, None)
+        game.run()
+    except KeyboardInterrupt:
+        raise
+
+
+if __name__ == "__main__":
+    try:
+        main(sys.argv[1])
+    except KeyboardInterrupt:
+        raise
