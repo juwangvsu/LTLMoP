@@ -8,13 +8,11 @@ Uses the heat-controller to take a current position, current region, and destina
 """
 
 from numpy import *
-import time
 
 import lib.handlers.handlerTemplates as handlerTemplates
 from hierarchical import LocalGame, Hierarchical
 import threading
 from SimpleXMLRPCServer import SimpleXMLRPCServer
-import xmlrpclib
 import socket
 import os
 import json
@@ -238,7 +236,7 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
         return "exit.{}.{}_{}".format(self.layer - 1, fr, to)
 
     def is_toplevel(self):
-        return self.id == None
+        return self.id is None
 
     def find_exit_child(self, to):
         """

@@ -22,10 +22,10 @@ while t != "src":
         print "I have no idea where I am; this is ridiculous"
         sys.exit(1)
 
-goal_regex = re.compile("^(?P<spec>(Go to))(?P<region>.*)", re.I)
+goal_regex = re.compile("^(?P<spec>(Go to ))(?P<region>.*)", re.I)
 
 
-# Highest level
+# Highest level / Metainformation
 class Hierarchical(object):
     def __init__(self, name, path, layers, init_region):
         self.path = path
@@ -48,30 +48,34 @@ class LocalGame(object):
         self.proj = project  # Reference to Hierarchical, not an LTLMoP project
         self.level = level
         self.id = id
-        self.region = id.split(".")[-1] # the region we represent
+        self.region = id.split(".")[-1]  # the region we represent
         self.path_prefix = path_helper(project.path, project.name, level, id)
         self.spec_path = self.path_prefix + ".spec"
         self.region_path = self.path_prefix + ".regions"
         self.had_changes = threading.Event()
 
+        # initialize with the original spec
+        self.compiler = SpecCompiler(self.spec_path)
+
+        # Get the text from the spec and remove empty lines
+        self.spec_list = list(self.compiler.specText.splitlines(True))
+
         self.current_region = initial_region
-        self.avoid_regions = []
+
         self.goal_region = self.get_goal_region(goal_region)
+        self.set_goal_region()
+
         self.game_done = threading.Event()
         self.executor_ready_event = threading.Event()
         self.executor_port = None
 
-        # File gets written when setting the goal
-        self.target_spec_path = "{}#{}#{}.spec".format(self.path_prefix,
-                                                       goal_region, str(self.avoid_regions))
-        self.strat_path = "{}#{}#{}.aut".format(self.path_prefix, goal_region,
-                                                str(self.avoid_regions))
+        # self.set_init_region(initial_region)
+        self.strat_path = None  # Gets set in write_spec_file()
+        self.target_spec_path = None
+        self.write_spec_file()
 
         # If there is an automaton file we assume it was synthesized already
         self.dirty = not os.path.isfile(self.strat_path)
-
-        # self.set_init_region(initial_region)
-        self.write_spec_file()
 
         # Get set up in executor_setup
         self.executor_proxy = None
@@ -133,45 +137,51 @@ class LocalGame(object):
         else:
             logging.warning("Can't set initial region, it was None")
 
+    def set_goal_region(self):
+        """
+        Iterates over the specification and changes the goal to the goal region.
+        If the goal region is None we delete the entry.
+        """
+        index = None
+        for i, line in enumerate(self.spec_list):
+            logging.debug(line)
+            match = goal_regex.match(line)
+            if match:
+                index = i
+
+        if index is not None and self.goal_region is None:
+            del self.spec_list[index]
+        elif index is not None and self.goal_region is not None:
+            self.spec_list[index] = "go to " + " or ".join(self.goal_region)
+
+    def avoid_region(self, region_name):
+        self.spec_list.append("always not %s" % (region_name))
+        self.had_changes.set()
+
     def write_spec_file(self):
         """
-        Sets the goal region of the game by changing the specification file
+        Sets the goal region of the game by changing the specification file.
+        Also add the regions to avoid in the end
         TODO: don't do it by fiddling with files
         """
-        if self.dirty:
-            with open(self.spec_path, 'r') as input, open(
-                    self.target_spec_path, 'w') as output:
 
-                lines = input.readlines()
-                for line in lines:
-                    match = goal_regex.match(line)
-                    if match and (self.goal_region is not None):
-                        line = match.group('spec') + " " + " or ".join(
-                            self.goal_region)
-                    elif match and (self.goal_region is None):
-                        line = "\n"
+        hash = self.sha1_of_spec()
+        self.target_spec_path = "{}#{}.spec".format(self.path_prefix, hash)
+        self.strat_path = "{}#{}.aut".format(self.path_prefix, hash)
 
-                    output.write(line)
-                for reg in self.avoid_regions:
-                    output.write("always not " + str(reg) + "\n")
+        text = "".join(self.spec_list)
+        self.compiler.specText = text
+        self.compiler.proj.specText = text
+        self.compiler.proj.writeSpecFile(self.target_spec_path)
 
-    def change_regions(self):
-        """
-        """
-        self.had_changes.set()
-        self.avoid_regions.sort()
-        self.target_spec_path = "{}#{}#{}.spec".format(self.path_prefix,
-                                                       self.goal_region, str(self.avoid_regions))
-        self.strat_path = "{}#{}#{}.aut".format(self.path_prefix,
-                                                self.goal_region, str(self.avoid_regions))
-        self.dirty = True
-        self.write_spec_file()
+        # with open(self.target_spec_path, 'w') as output:
+        #     for line in self.spec_list:
+        #         output.write(line)
 
     def run(self):
         """
         Runs the local game, but checks first if it has to be synthesized
         (if regions have changed)
-        TODO: cache the synthesized strategies on disk
         """
         logging.info("Running the game")
 
@@ -256,7 +266,8 @@ class LocalGame(object):
         self.executor_proxy.resume()
 
     def teardown(self):
-        self.executor_proxy.shutdown()
+        if self.executor_proxy is not None:
+            self.executor_proxy.shutdown()
 
         logging.debug("Shutting down serv")
         self.serv.shutdown()
@@ -311,8 +322,7 @@ class LocalGame(object):
             # else:
             logging.warning("We can't go to {}, so try to avoid it".format(
                 event_data))
-            self.avoid_regions.append(event_data)
-            self.change_regions()
+            self.avoid_region(event_data)
 
             self.game_done.set()
         else:
@@ -331,6 +341,7 @@ class LocalGame(object):
             return [goal]
         # Else search for all exits to that region
         else:
+            logging.warning([x.name for x in self.find_exits(goal)])
             return [x.name for x in self.find_exits(goal)]
 
     def find_exits(self, goal):
@@ -343,6 +354,18 @@ class LocalGame(object):
             if reg.name.startswith(pattern):
                 exits.append(reg)
         return exits
+
+    def move_to_end(self, region):
+        """
+        Tries to reorder the regions to visit, so `region` is in the last line
+        and gets visited last.
+        Changes specification
+        """
+        return
+
+    def sha1_of_spec(self):
+        text = "\n".join(self.spec_list)
+        return hashlib.sha1(text).hexdigest()
 
 
 # HELPERS
