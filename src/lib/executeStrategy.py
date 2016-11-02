@@ -121,10 +121,28 @@ class ExecutorStrategyExtensions(object):
             self.postEvent("INFO", "Now in state %s (z = %s)" % (self.strategy.current_state.state_id, self.strategy.current_state.goal_id))
 
     def find_region_mapping(self, name):
+        """
+        Find the original region name by a with its subregion name `name`
+        """
         for rname, subregs in self.proj.regionMapping.iteritems():
             if name in subregs:
                 break
         return rname
+
+    def find_region_by_name(self, name):
+        """
+        Find one subregion name by its original name `name`
+        """
+        reg_name = None
+        for rname, subregs in self.proj.regionMapping.iteritems():
+            if name == rname:
+                reg_name = subregs[0]
+        if reg_name is not None:
+            for r in self.proj.rfi.regions:
+                if r.name == reg_name:
+                    return r
+        return None
+
 
     def HSubGetSensorValue(self,sensorList):
         """

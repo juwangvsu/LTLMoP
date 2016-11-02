@@ -56,6 +56,7 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
         self.arrived = False
 
         # will be the path to initial region of the lower level
+        # Needed for basicSim
         self.last_current_region = ".".join(initial_region.split(".")[1:])
 
         # Only needed for basicSim for the next initial regions
@@ -86,7 +87,9 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
 
         serv.register_function(self.handle_event)
 
-        self.xmlrpc_server_thread = threading.Thread(target=serv.serve_forever)
+        self.xmlrpc_server_thread = threading.Thread(
+            target=serv.serve_forever,
+            name="AH.XMLrpc.{}.{}".format(self.id, self.listen_port))
         self.xmlrpc_server_thread.daemon = True
         self.xmlrpc_server_thread.start()
 
@@ -179,7 +182,8 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
                 "INFO", "The robot couldn't reach the goal " +
                 self.current_goal + " because of " + str(event_data))
             logging.warning("Our child has failed us")
-            self.executor.post_event_hierarchical(event_type, self.current_goal)
+            self.executor.post_event_hierarchical(event_type,
+                                                  self.current_goal)
 
         else:
             self.executor.postEvent(event_type, event_data)
@@ -225,18 +229,11 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
         logging.info("Creating a local game: {}, {} {} {}".format(
             self.layer - 1, ".".join(s for s in [self.id, cur_reg]
                                      if s), init_reg, next_region))
-        # The new ID will be the current id appended with the current region, if
-        # we're not on the highest level
+        # The new ID will be the current id appended with the current region,
+        # if we're not on the highest level
         game = LocalGame(hier, self.layer - 1,
                          ".".join(s for s in [self.id, cur_reg] if s),
                          next_region, init_reg, self.listen_port)
-        return game
-
-    def create_toplevel_game(self):
-        hier = Hierarchical(self.proj_name, self.proj_path, self.num_layers,
-                            self.last_current_region)
-        game = LocalGame(hier, self.layer, self.id, None, None,
-                         self.listen_port)
         return game
 
     def exit_helper(self, fr, to):

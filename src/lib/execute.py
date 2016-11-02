@@ -109,7 +109,7 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
                 try:
                     self.externalEventTarget.handleEvent(eventType, eventData)
                 except socket.error as e:
-                    logging.warning("Could not send event to remote event target: %s", e)
+                    logging.warning("Could not send event to remote event target: %s" % e)
                     logging.warning("Forcefully unsubscribing target.")
                     self.externalEventTarget = None
 
@@ -119,7 +119,7 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
                 try:
                     self.hierarchicalEventTarget.handle_event(event_type, event_data)
                 except socket.error as e:
-                    logging.warning("Could not send event to remote hierarchical target: %s", e)
+                    logging.warning("Could not send event to remote hierarchical target: %s" % e)
                     logging.warning("Forcefully unsubscribing target.")
                     self.hierarchicalEventTarget = None
             else:
@@ -173,7 +173,10 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
             else:
                 logging.debug("{} does not have _stop() function".format(h.__class__.__name__))
 
-        self.postEvent("CLOSE")
+        try:
+            self.postEvent("CLOSE")
+        except Exception:
+            pass
         self.alive.clear()
 
     def pause(self):
@@ -212,7 +215,6 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
         Register the parent hierarchical.LocalGame
         """
         self.hierarchicalEventTarget = xmlrpclib.ServerProxy(address, allow_none=True)
-        logging.info("Registering the hierarchical event target %s" % address)
 
         # Redirect all output to the log
         # redir = RedirectText(self.hierarchicalEventTarget.handle_event)
@@ -220,7 +222,7 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
         # sys.stdout = redir
         # sys.stderr = redir
 
-    def initialize(self, spec_file, strategy_file, firstRun=True):
+    def initialize(self, spec_file, strategy_file, firstRun=True, initial_outputs={}, init_region=None):
         """
         Prepare for execution, by loading and initializing all the relevant files (specification, map, handlers, strategy)
         If `firstRun` is true, all handlers will be imported; otherwise, only the motion control handler will be reloaded.
@@ -292,7 +294,10 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
             logging.error("Couldn't get a pose")
             sys.exit(-1)
 
-        init_region = self.proj.rfi.regions[cur_reg]
+        if init_region is not None:
+            init_region = self.find_region_by_name(init_region)
+        if init_region is None:
+            init_region = self.proj.rfi.regions[cur_reg]
         if init_region is None:
             logging.error("Initial pose not inside any region!")
             print("Initial pose not inside any region!")
@@ -311,6 +316,11 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
             # save the initial values of the actuators and the custom propositions
             for prop in self.proj.enabled_actuators + self.proj.all_customs:
                 self.current_outputs[prop] = (prop in self.hsub.executing_config.initial_truths)
+
+            d = self.current_outputs.copy()
+            d.update(initial_outputs)
+            self.current_outputs = d
+            logging.info("Loaded initial truths: {}".format(self.current_outputs))
 
         init_prop_assignments.update(self.current_outputs)
 
@@ -386,6 +396,23 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
             traceback.print_exc()
             raise
 
+    def set_initial_truths(self, truths):
+        """
+        Take the initial truths from the config and merge them with the truths
+        provided as argument.
+        """
+        # d = self.hsub.executing_config.initial_truths.copy()
+        # d.update(truths)
+        truth_list = [k for k, v in truths.iteritems() if v]
+        logging.warning(truth_list)
+        self.hsub.executing_config.initial_truths = self.hsub.executing_config.initial_truths + truth_list
+
+    def get_current_outputs(self):
+        """
+        Return the current outputs as dictionary
+        """
+        return self.current_outputs
+
 class RedirectText:
     def __init__(self, event_handler):
         self.event_handler = event_handler
@@ -402,7 +429,7 @@ class RedirectText:
 # Main function, run when called from command-line #
 ####################################################
 
-def execute_main(listen_port=None, spec_file=None, aut_file=None, show_gui=False, parent_port=None):
+def execute_main(listen_port=None, spec_file=None, aut_file=None, show_gui=False, parent_port=None, last_outputs={}, init_region=None):
     logging.info("Hello. Let's do this!")
 
     # Create the XML-RPC server
@@ -426,7 +453,7 @@ def execute_main(listen_port=None, spec_file=None, aut_file=None, show_gui=False
     xmlrpc_server.register_instance(e)
 
     # Kick off the XML-RPC server thread
-    XMLRPCServerThread = threading.Thread(target=xmlrpc_server.serve_forever)
+    XMLRPCServerThread = threading.Thread(target=xmlrpc_server.serve_forever, name="Execute_main_{}".format(listen_port))
     XMLRPCServerThread.daemon = True
     XMLRPCServerThread.start()
     logging.info("Executor listening for XML-RPC calls on http://127.0.0.1:{} ...".format(listen_port))
@@ -445,12 +472,14 @@ def execute_main(listen_port=None, spec_file=None, aut_file=None, show_gui=False
         # Tell executor to load spec & aut
         #if aut_file is None:
         #    aut_file = spec_file.rpartition('.')[0] + ".aut"
-        e.initialize(spec_file, aut_file, firstRun=True)
+        e.initialize(spec_file, aut_file, firstRun=True, initial_outputs=last_outputs, init_region=init_region)
+
 
     # Tell the parent we're ready, if there is one
     if parent_port is not None:
         parent_proxy = xmlrpclib.ServerProxy("http://127.0.0.1:{}".format(parent_port))
         parent_proxy.executor_ready(listen_port)
+        logging.debug("Our parent is on port: %i" % parent_port)
 
     # Start the executor's main loop in this thread
     e.run()

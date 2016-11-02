@@ -49,7 +49,7 @@ class LocalGame(object):
                  initial_region=None,
                  parent_port=None):
         self.proj = project  # Reference to Hierarchical, not an LTLMoP project
-        self.level = level
+        self.level = int(level)
         self.id = id
         if self.id is not None:
             self.region = id.split(".")[-1]  # the region we represent
@@ -62,6 +62,7 @@ class LocalGame(object):
         self.spec_path = self.path_prefix + ".spec"
         self.region_path = self.path_prefix + ".regions"
         self.had_changes = threading.Event()
+        self.last_outputs = {}
 
         # initialize with the original spec
         self.compiler = SpecCompiler(self.spec_path)
@@ -82,7 +83,6 @@ class LocalGame(object):
         self.executor_ready_event = threading.Event()
         self.executor_port = None
 
-        self.set_init_region(initial_region)
         self.strat_path = None  # Gets set in write_spec_file()
         self.target_spec_path = None
         self.write_spec_file()
@@ -99,6 +99,28 @@ class LocalGame(object):
         else:
             self.parent = xmlrpclib.ServerProxy("http://127.0.0.1:{}".format(
                 parent_port))
+
+        # Find a port for the local server and start it
+        while True:
+            self.listen_port = random.randint(10000, 65535)
+            try:
+                self.serv = SimpleXMLRPCServer(
+                    ("127.0.0.1", self.listen_port),
+                    logRequests=False,
+                    allow_none=True)
+            except socket.error:
+                pass
+            else:
+                break
+
+        # Register the callbacks for when the executor is ready and the messages from it
+        self.serv.register_function(self.executor_ready)
+        self.serv.register_function(self.handle_event)
+        self.xmlrpc_server_thread = threading.Thread(
+            target=self.serv.serve_forever,
+            name="LG.XMLrpc.{}.{}".format(self.id, self.listen_port))
+        self.xmlrpc_server_thread.daemon = True
+        self.xmlrpc_server_thread.start()
 
     def synthesize(self):
         """
@@ -127,7 +149,11 @@ class LocalGame(object):
         if region is not None:
             # Get only the region of the current level for the init handler
             # but keep the whole path for the abstract handler
-            reg = region.split(".")[-(self.level + 1)]
+            split = region.split(".")
+            if len(split) > 1:
+                reg = region.split(".")[-(self.level + 1)]
+            else:
+                reg = region
 
             config_name = self.find_current_config()
             is_it_the_line = False
@@ -215,6 +241,10 @@ class LocalGame(object):
 
             # Wait until the game is done
             self.game_done.wait()
+            self.last_outputs = self.executor_proxy.get_current_outputs()
+
+            self.stop_executor()
+        logging.info("Run loop is over")
 
     def stop(self):
         self.game_done.set()
@@ -225,34 +255,16 @@ class LocalGame(object):
 
     def executor_setup(self):
         """Set up the xmlrpc connection between the executor and the game"""
-        # Find a port for the local server and start it
-        while True:
-            listen_port = random.randint(10000, 65535)
-            try:
-                self.serv = SimpleXMLRPCServer(
-                    ("127.0.0.1", listen_port),
-                    logRequests=False,
-                    allow_none=True)
-            except socket.error:
-                pass
-            else:
-                break
-
-        # Register the callbacks for when the executor is ready and the messages from it
-        self.serv.register_function(self.executor_ready)
-        self.serv.register_function(self.handle_event)
-        self.xmlrpc_server_thread = threading.Thread(
-            target=self.serv.serve_forever)
-        self.xmlrpc_server_thread.daemon = True
-        self.xmlrpc_server_thread.start()
 
         # Start the executor in a new thread
+        logging.warning("Current reg: " + str(self.current_region))
         self.exec_thread = threading.Thread(
             target=execute_main,
             args=[
-                None, self.target_spec_path, self.strat_path, True, listen_port
+                None, self.target_spec_path, self.strat_path, True,
+                self.listen_port, self.last_outputs, self.current_region
             ],
-            name="LocalGame_{}#{}".format(self.id, self.goal_region))
+            name="Executor_{}#{}".format(self.strat_path, self.goal_region))
         self.exec_thread.daemon = True
         self.exec_thread.start()
 
@@ -262,12 +274,14 @@ class LocalGame(object):
         # Set up a proxy for the executor
         self.executor_proxy = xmlrpclib.ServerProxy(
             "http://127.0.0.1:{}".format(self.executor_port), allow_none=True)
-        self.executor_proxy.registerHierarchicalEventTarget(
-            "http://127.0.0.1:{}".format(listen_port))
+
+        addr = "http://127.0.0.1:{}".format(self.listen_port)
+        self.executor_proxy.registerHierarchicalEventTarget(addr)
 
         self.executor_proxy.postEvent(
             "INFO", "Game on level {}: {} {} {}".format(
                 self.level, self.id, self.current_region, self.goal_region))
+
         self.game_done.clear()
 
     def pause(self):
@@ -277,8 +291,7 @@ class LocalGame(object):
         self.executor_proxy.resume()
 
     def teardown(self):
-        if self.executor_proxy is not None:
-            self.executor_proxy.shutdown()
+        self.stop_executor()
 
         logging.debug("Shutting down serv")
         if self.serv:
@@ -289,8 +302,6 @@ class LocalGame(object):
         if self.xmlrpc_server_thread:
             self.xmlrpc_server_thread.join()
         logging.info("Waiting for the execution thread to finish")
-        if self.exec_thread:
-            self.exec_thread.join()
         logging.info("Local game shut down")
 
     def find_current_config(self):
@@ -309,6 +320,20 @@ class LocalGame(object):
 
         logging.warning("CurrentConfigName not found")
 
+    def stop_executor(self):
+        """
+        Stops the executor via the proxy and resets all
+        related variables.
+        """
+        self.executor_ready_event.clear()
+        if self.executor_proxy is not None:
+            self.executor_proxy.shutdown()
+            self.executor_proxy = None
+        if self.exec_thread is not None:
+            self.exec_thread.join()
+            self.exec_thread = None
+        self.executor_port = None
+
     def executor_ready(self, port):
         """Is to be called by the executor after it is done setting up its xmlrpc server"""
         self.executor_ready_event.set()
@@ -322,6 +347,7 @@ class LocalGame(object):
         # self.executor_proxy.postEvent(event_type, event_data)
         if event_type == "BORDER":
             self.current_region = event_data
+            logging.info("Current reg now: " + str(self.current_region))
             if event_data.startswith("exit"):
                 self.post_event_parent(event_type, event_data)
                 self.game_done.set()
@@ -345,8 +371,12 @@ class LocalGame(object):
                 "INFO",
                 "We couldn't go to {}, so try to go there later".format(
                     event_data))
-            self.move_to_end(event_data)
-            self.write_spec_file()
+            if not self.move_to_end(event_data):
+                self.write_spec_file()
+            else:
+                logging.error("This was already our last target")
+                self.executor_proxy.postEvent("INFO", "Our target was at the last position already, stopping")
+                self.pause()
             self.game_done.set()
         else:
             logging.debug("Got something else: (%s) %s" %
@@ -381,19 +411,25 @@ class LocalGame(object):
         """
         Tries to reorder the regions to visit, so `region` is in the last line
         and gets visited last.
-        Changes specification
+        Changes specification.
+        Returns true iff the region was at the last position already
         """
         index = None
-        self.had_changes.set()
 
         for i, line in enumerate(self.spec_list):
             if "visit " + region in line:
                 index = i
+
+        if index == len(self.spec_list)-1:
+            return True
+
         if index:
             self.spec_list.insert(
                 len(self.spec_list), self.spec_list.pop(index))
+            self.had_changes.set()
         else:
             logging.warning("Region we wanted to reorder not found")
+        return False
 
     def sha1_of_spec(self):
         """
