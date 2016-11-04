@@ -375,7 +375,9 @@ class LocalGame(object):
                 self.write_spec_file()
             else:
                 logging.error("This was already our last target")
-                self.executor_proxy.postEvent("INFO", "Our target was at the last position already, stopping")
+                self.executor_proxy.postEvent(
+                    "INFO",
+                    "Our target was at the last position already, stopping")
                 self.pause()
             self.game_done.set()
         else:
@@ -420,10 +422,10 @@ class LocalGame(object):
             if "visit " + region in line:
                 index = i
 
-        if index == len(self.spec_list)-1:
+        if index == len(self.spec_list) - 1:
             return True
 
-        if index:
+        if index is not None:
             self.spec_list.insert(
                 len(self.spec_list), self.spec_list.pop(index))
             self.had_changes.set()
