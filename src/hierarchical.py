@@ -11,6 +11,7 @@ import regions
 
 import logging
 import lib.globalConfig
+import json, datetime
 from lib.specCompiler import SpecCompiler
 
 # Climb the tree to find out where we are
@@ -59,6 +60,12 @@ class LocalGame(object):
             self.region = None
             self.path_prefix = project.path + project.name + "." + level
 
+        if self.is_toplevel():
+            self.stats_logger = logging.getLogger('stats')
+            fh = logging.FileHandler(self.path_prefix + ".log")
+            self.stats_logger.addHandler(fh)
+            self.stats_logger.info("#Stats started\n#=======")
+
         self.spec_path = self.path_prefix + ".spec"
         self.region_path = self.path_prefix + ".regions"
         self.had_changes = threading.Event()
@@ -75,6 +82,10 @@ class LocalGame(object):
             self.spec_list[-1] = self.spec_list[-1] + "\n"
 
         self.current_region = initial_region
+
+        # only needed for basicSim
+        if initial_region is not None:
+            self.set_init_region(initial_region)
 
         self.goal_region = self.get_goal_region(goal_region)
         self.set_goal_region()
@@ -137,6 +148,7 @@ class LocalGame(object):
                 self.post_event_parent("INFO", "We can't get to %s, log: %s" %
                                        (self.goal_region, msg))
                 self.post_event_parent("UNSYNTH", str(self.goal_region))
+                self.log_stats("UNSYNTH", self.goal_region)
                 self.stop()
                 return False
             else:
@@ -327,7 +339,10 @@ class LocalGame(object):
         """
         self.executor_ready_event.clear()
         if self.executor_proxy is not None:
-            self.executor_proxy.shutdown()
+            try:
+                self.executor_proxy.shutdown()
+            except:
+                pass
             self.executor_proxy = None
         if self.exec_thread is not None:
             self.exec_thread.join()
@@ -363,6 +378,7 @@ class LocalGame(object):
             logging.warning("We can't go to {}, so try to avoid it".format(
                 event_data))
             self.avoid_region(event_data)
+            self.log_stats("FAIL", event_data)
             self.write_spec_file()
         elif event_type == "UNSYNTH":
             logging.warning("We couldn't go to {}, so try to go there later".
@@ -371,6 +387,7 @@ class LocalGame(object):
                 "INFO",
                 "We couldn't go to {}, so try to go there later".format(
                     event_data))
+
             if not self.move_to_end(event_data):
                 self.write_spec_file()
             else:
@@ -380,6 +397,15 @@ class LocalGame(object):
                     "Our target was at the last position already, stopping")
                 self.pause()
             self.game_done.set()
+        elif event_type == "STATS":
+            # STATS from a child, pass it through and append information
+            logging.error(event_data)
+            if self.is_toplevel():
+                self.stats_logger.info(json.dumps(event_data))
+            else:
+                logging.error("Passing it up to our parents")
+                self.post_event_parent(event_type,
+                                       event_data['path'].append(self.id))
         else:
             logging.debug("Got something else: (%s) %s" %
                           (event_type, event_data))
@@ -441,6 +467,9 @@ class LocalGame(object):
         return hashlib.sha1(text).hexdigest()
 
     def post_event_parent(self, event_type, event_data):
+        """
+        Sends the event to its parent (which is typically an AbstractHandler)
+        """
         if self.parent is not None:
             self.parent.handle_event(event_type, event_data)
 
@@ -452,6 +481,24 @@ class LocalGame(object):
         Check if there is an automaton for the current specification already
         """
         return not os.path.isfile(self.strat_path)
+
+    def log_stats(self, event_type, reason):
+        """
+        Tries to log stats by either sending it up to the parent if we're not
+        on the top level or by logging it to the file if we are on top
+        """
+        event = {}
+        event['path'] = [self.id],
+        event['goal'] = self.goal_region,
+        event['time'] = datetime.datetime.now().isoformat()
+        event['region'] = self.current_region
+        event['reason'] = reason
+        event['type'] = event_type
+
+        if self.is_toplevel():
+            self.stats_logger.info(json.dumps(event))
+        else:
+            self.post_event_parent("STATS", event)
 
 
 # HELPERS

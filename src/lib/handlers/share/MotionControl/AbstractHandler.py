@@ -15,7 +15,7 @@ import threading
 from SimpleXMLRPCServer import SimpleXMLRPCServer
 import socket
 import os
-import json
+import json, time
 import logging
 import globalConfig
 import re
@@ -60,8 +60,10 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
         self.last_current_region = ".".join(initial_region.split(".")[1:])
 
         # Only needed for basicSim for the next initial regions
-        with open(self.proj_path + "mappings.json") as f:
-            self.mappings = json.load(f)
+        self.mappings = None
+        if os.path.isfile(self.proj_path + "mappings.json"):
+            with open(self.proj_path + "mappings.json") as f:
+                self.mappings = json.load(f)
 
         self.listen_port = None
         self.xmlrpc_server_thread = None
@@ -156,7 +158,7 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
             logging.info("Borders crossed in MotionHandler to:{}".format(
                 event_data))
             # We got to an exit, get the next region from it
-            if event_data.startswith("exit"):
+            if event_data.startswith("exit") and self.mappings is not None:
                 if self.is_toplevel():
                     (ex, level, regions) = event_data.split(".")
                     (fr, to) = regions.split("_")
@@ -184,7 +186,8 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
             logging.warning("Our child has failed us")
             self.executor.post_event_hierarchical(event_type,
                                                   self.current_goal)
-
+        elif event_type == "STATS":
+            self.executor.post_event_hierarchical(event_type, event_data)
         else:
             self.executor.postEvent(event_type, event_data)
 
@@ -231,9 +234,9 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
                                      if s), init_reg, next_region))
         # The new ID will be the current id appended with the current region,
         # if we're not on the highest level
-        game = LocalGame(hier, self.layer - 1,
-                         ".".join(s for s in [self.id, cur_reg] if s),
-                         next_region, init_reg, self.listen_port)
+        game = LocalGame(hier, self.layer - 1, ".".join(
+            s for s in [self.id, cur_reg]
+            if s), next_region, init_reg, self.listen_port)
         return game
 
     def exit_helper(self, fr, to):
