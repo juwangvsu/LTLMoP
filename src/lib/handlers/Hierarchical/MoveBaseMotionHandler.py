@@ -5,6 +5,7 @@ import logging
 import globalConfig
 import sys
 import threading
+import random
 
 import matplotlib.path as mplPath
 
@@ -84,8 +85,10 @@ class MoveBaseMotionHandler(handlerTemplates.MotionControlHandler):
             self.current_goal = next_reg
 
             # TODO: how many points should we try?
-            # self.points = list(next_reg.getPoints())[2:]
-            self.points = []
+            pl = list(next_reg.getPoints())
+            random.shuffle(pl)
+            self.points = pl[2:]
+            # self.points = []
 
             center = next_reg.getCenter()
             goal = self.create_goal(center.x, center.y)

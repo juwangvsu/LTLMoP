@@ -81,6 +81,8 @@ class LocalGame(object):
         if not self.spec_list[-1].endswith("\n"):
             self.spec_list[-1] = self.spec_list[-1] + "\n"
 
+        logging.debug(self.spec_list)
+
         self.current_region = initial_region
 
         # only needed for basicSim
@@ -108,8 +110,8 @@ class LocalGame(object):
         if parent_port is None:
             self.parent = None
         else:
-            self.parent = xmlrpclib.ServerProxy("http://127.0.0.1:{}".format(
-                parent_port))
+            self.parent = xmlrpclib.ServerProxy(
+                "http://127.0.0.1:{}".format(parent_port), allow_none=True)
 
         # Find a port for the local server and start it
         while True:
@@ -148,7 +150,7 @@ class LocalGame(object):
                 self.post_event_parent("INFO", "We can't get to %s, log: %s" %
                                        (self.goal_region, msg))
                 self.post_event_parent("UNSYNTH", str(self.goal_region))
-                self.log_stats("UNSYNTH", self.goal_region)
+                self.log_stats("UNSYNTH", msg)
                 self.stop()
                 return False
             else:
@@ -199,10 +201,11 @@ class LocalGame(object):
         if index is not None and self.goal_region is None:
             del self.spec_list[index]
         elif index is not None and self.goal_region is not None:
-            self.spec_list[index] = "go to " + " or ".join(self.goal_region)
+            self.spec_list[index] = "go to " + " or ".join(
+                self.goal_region) + "\n"
 
     def avoid_region(self, region_name):
-        self.spec_list.append("always not %s" % (region_name))
+        self.spec_list.insert(0, "always not %s\n" % (region_name))
         self.had_changes.set()
 
     def write_spec_file(self):
@@ -380,6 +383,7 @@ class LocalGame(object):
             self.avoid_region(event_data)
             self.log_stats("FAIL", event_data)
             self.write_spec_file()
+            self.game_done.set()
         elif event_type == "UNSYNTH":
             logging.warning("We couldn't go to {}, so try to go there later".
                             format(event_data))
@@ -399,13 +403,10 @@ class LocalGame(object):
             self.game_done.set()
         elif event_type == "STATS":
             # STATS from a child, pass it through and append information
-            logging.error(event_data)
             if self.is_toplevel():
                 self.stats_logger.info(json.dumps(event_data))
             else:
-                logging.error("Passing it up to our parents")
-                self.post_event_parent(event_type,
-                                       event_data['path'].append(self.id))
+                self.post_event_parent(event_type, event_data)
         else:
             logging.debug("Got something else: (%s) %s" %
                           (event_type, event_data))
@@ -463,7 +464,7 @@ class LocalGame(object):
         """
         Hashes `self.spec_list` and returns its hexdigest
         """
-        text = "\n".join(self.spec_list)
+        text = "".join(self.spec_list)
         return hashlib.sha1(text).hexdigest()
 
     def post_event_parent(self, event_type, event_data):
@@ -535,7 +536,8 @@ def sha1_of_file(path):
         return hashlib.sha1(f.read()).hexdigest()
 
 
-def main(spec_path):
+if __name__ == "__main__":
+    spec_path = sys.argv[1]
     try:
         (root, filename) = os.path.split(spec_path)
         (name, level, ext) = filename.split(".")
@@ -543,11 +545,5 @@ def main(spec_path):
         game = LocalGame(hier, level, None, None)
         game.run()
     except KeyboardInterrupt:
-        raise
-
-
-if __name__ == "__main__":
-    try:
-        main(sys.argv[1])
-    except KeyboardInterrupt:
+        game.stop()
         raise
