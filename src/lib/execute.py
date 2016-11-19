@@ -159,7 +159,7 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
 
         if region is None:
             logging.warning("Pose of {} not inside any region!".format(pose))
-        self.postEvent("INFO", "Pose is not inside of any region")
+            self.postEvent("INFO", "Pose is not inside of any region")
 
         return region
 

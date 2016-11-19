@@ -62,6 +62,14 @@ class MoveBaseMotionHandler(handlerTemplates.MotionControlHandler):
         # Check if we think we're in the correct region already
         arrived = self.check_inside_region(self.pose_handler.getPose(),
                                            next_reg)
+
+        tmp_reg = self.executor._getCurrentRegionFromPose()
+        self.postEvent("INFO", "we are in region" + str(tmp_reg))
+        tmp_reg_name = self.find_region_mapping(tmp_reg)
+
+        if tmp_reg != current_reg and tmp_reg != next_reg:
+            self.postEvent("INFO", "We ended up somewhere else")
+
         if arrived:
             return True
 
