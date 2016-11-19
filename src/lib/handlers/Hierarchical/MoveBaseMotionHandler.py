@@ -64,11 +64,13 @@ class MoveBaseMotionHandler(handlerTemplates.MotionControlHandler):
                                            next_reg)
 
         tmp_reg = self.executor._getCurrentRegionFromPose()
-        self.postEvent("INFO", "we are in region" + str(tmp_reg))
-        tmp_reg_name = self.find_region_mapping(tmp_reg)
+        tmp_subreg = self.executor.proj.rfi.regions[tmp_reg].name
+        tmp_reg_name = self.find_region_mapping(tmp_subreg)
+        next_reg_name = self.find_region_mapping(next_reg.name)
+        cur_reg_name = self.find_region_mapping(self.executor.proj.rfi.regions[current_reg].name)
 
-        if tmp_reg != current_reg and tmp_reg != next_reg:
-            self.postEvent("INFO", "We ended up somewhere else")
+        if tmp_reg != current_reg and tmp_reg_name != next_reg_name:
+            self.executor.postEvent("INFO", "We ended up somewhere else: %s instead of %s or %s" % (tmp_reg_name, cur_reg_name, next_reg_name))
 
         if arrived:
             return True
@@ -108,10 +110,14 @@ class MoveBaseMotionHandler(handlerTemplates.MotionControlHandler):
         state = self.move_base.get_state()
 
         if state == GoalStatus.SUCCEEDED:
-            self.executor.postEvent("INFO", "We've arrived successfully: ")
-            self.current_goal = None
+            # The navigation stack has arrived, but apparently we're not in the right LTLMoP region,
+            # so treat it as failure
+            self.executor.postEvent("INFO", "We've arrived at our goal, according to the navigation")
+            self.failed = True
+            return False
 
-            return True
+            # self.current_goal = None
+            # return True
         elif state in [
                 GoalStatus.ABORTED, GoalStatus.REJECTED, GoalStatus.LOST
         ]:
