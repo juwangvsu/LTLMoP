@@ -162,14 +162,15 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
                 # game has to know the initial region.
                 # For ROS-simulation setting self.arrived to True is enough.
                 if self.is_toplevel():
-                    (ex, level, regions) = event_data.split(".")
-                    (fr, to) = regions.split("_")
+                    (ex, level, fr, to) = event_data.split("_")
+                    regions = (fr + "_" + to)
                     self.last_current_region = self.mappings[fr][str(
                         self.layer - 1)]["{}.{}".format(level, regions)]
                 else:
-                    (ex, regions) = event_data.split(".", 1)
+                    (ex, level, fr, to) = event_data.split("_")
+                    reg = (level + "_" + fr + "_" + to)
                     self.last_current_region = self.mappings[self.id][str(
-                        self.layer - 1)][regions]
+                        self.layer - 1)][reg]
                 self.arrived = True
             else:
                 self.last_current_region = ".".join(
@@ -242,7 +243,7 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
         return game
 
     def exit_helper(self, fr, to):
-        return "exit.{}.{}_{}".format(self.layer - 1, fr, to)
+        return "exit_{}_{}_{}".format(self.layer - 1, fr, to)
 
     def is_toplevel(self):
         return self.id is None
@@ -251,6 +252,7 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
         """
         Load the regions of the level below and return the list of exits
         so we can choose another one if the first one is blocked.
+        TODO: no longer needed, because we handle the exits in the local game.
         """
         rfi = regions.RegionFileInterface()
         # self.id might be None, so throw it out
@@ -259,7 +261,7 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
                 s for s in [self.id, self.cur_reg] if s))
         rfi.readFile(reg_path)
         exits = []
-        pattern = "exit.{}.{}_{}".format(str(self.layer - 1), self.cur_reg, to)
+        pattern = "exit_{}_{}_{}".format(str(self.layer - 1), self.cur_reg, to)
         for reg in rfi.regions:
             if reg.name.startswith(pattern):
                 exits.append(reg)
@@ -268,6 +270,7 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
     def remove_exit(self, name):
         """
         Removes the exit with name `name`, if it was in the list
+        TODO: no longer needed, because we handle the exits in the loca game.
         """
         logging.debug("Exits before: %s" % str(self.exits))
         for i, o in enumerate(self.exits):
@@ -279,12 +282,13 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
 
 
 exit_regex = re.compile(
-    "exit\.(?P<level>.+?)\.(?P<from>.+?)_(?P<to>.+?)(#.*)?", re.I)
+    "exit_(?P<level>.+?)_(?P<from>.+?)_(?P<to>.+?)(#.*)?", re.I)
 
 
 def regions_from_exit(ex_region):
     """
-    Matches the given string against the exit regex and returns a tuple of two regions (from, to)
+    Matches the given string against the exit regex and returns a tuple of two
+    regions `(from, to)`
     """
     m = exit_regex.match(ex_region)
     return (m.group('level'), m.group('from'), m.group('to'))

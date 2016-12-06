@@ -429,7 +429,7 @@ class LocalGame(object):
         # self.id might be None, so throw it out
         rfi.readFile(self.region_path)
         exits = []
-        pattern = "exit.{}.{}_{}".format(self.level, self.region, goal)
+        pattern = "exit_{}_{}_{}".format(self.level, self.region, goal)
         for reg in rfi.regions:
             if reg.name.startswith(pattern):
                 exits.append(reg)
@@ -515,11 +515,11 @@ def layer_helper(level, *arg):
 
 
 def exit_helper(level, fromr, to):
-    return "exit." + level + "." + "_".join([fromr, to])
+    return "exit_" + level + "_" + "_".join([fromr, to])
 
 
 exit_regex = re.compile(
-    "exit\.(?P<level>.+?)\.(?P<from>.+?)_(?P<to>.+?)(#.*)?", re.I)
+    "exit_(?P<level>.+?)_(?P<from>.+?)_(?P<to>.+?)(#.*)?", re.I)
 
 
 def regions_from_exit(ex_region):
