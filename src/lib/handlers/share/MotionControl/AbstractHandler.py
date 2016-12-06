@@ -119,7 +119,7 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
             # self.need_exits = True
             return True
 
-        # We should stay in this Building/Room
+        # We should stay in this Building/Room, so set None as the goal
         if current_reg == next_reg:
             nreg = None
         else:
@@ -154,11 +154,13 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
         #     (current_region, next_region) = event_data
         #     logging.info("STATE: {}".format(event_data))
         if event_type == "BORDER":
-            # Only needed for BasicSim?
             logging.info("Borders crossed in MotionHandler to:{}".format(
                 event_data))
-            # We got to an exit, get the next region from it
             if event_data.startswith("exit") and self.mappings is not None:
+                # We got to an exit, get the next region from it.
+                # This is only used for the basic simulation, because the next
+                # game has to know the initial region.
+                # For ROS-simulation setting self.arrived to True is enough.
                 if self.is_toplevel():
                     (ex, level, regions) = event_data.split(".")
                     (fr, to) = regions.split("_")

@@ -317,6 +317,7 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
             for prop in self.proj.enabled_actuators + self.proj.all_customs:
                 self.current_outputs[prop] = (prop in self.hsub.executing_config.initial_truths)
 
+            # Update the initial truths with the ones we got
             d = self.current_outputs.copy()
             d.update(initial_outputs)
             self.current_outputs = d

@@ -81,8 +81,6 @@ class LocalGame(object):
         if not self.spec_list[-1].endswith("\n"):
             self.spec_list[-1] = self.spec_list[-1] + "\n"
 
-        logging.debug(self.spec_list)
-
         self.current_region = initial_region
 
         # only needed for basicSim
@@ -360,7 +358,8 @@ class LocalGame(object):
     def handle_event(self, event_type, event_data):
         """Is called from the execute/executeStrategy on events, like borders crossed"""
         # if event_type == "POSE":
-        # If we get a pose just pass it to the parent
+        # If we get a pose just pass it to the parent, needed to keep the dots of
+        # basicSim in sync, not needed otherwise
         # self.post_event_parent(event_type, event_data)
         # self.executor_proxy.postEvent(event_type, event_data)
         if event_type == "BORDER":
@@ -441,7 +440,7 @@ class LocalGame(object):
         Tries to reorder the regions to visit, so `region` is in the last line
         and gets visited last.
         Changes specification.
-        Returns true iff the region was at the last position already
+        Returns `True` iff the region was at the last position already
         """
         index = None
 
