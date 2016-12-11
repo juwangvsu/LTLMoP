@@ -171,13 +171,12 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
                     reg = (level + "_" + fr + "_" + to)
                     self.last_current_region = self.mappings[self.id][str(
                         self.layer - 1)][reg]
-                self.arrived = True
             else:
                 self.last_current_region = ".".join(
                     [self.executor.get_current_region(), event_data])
                 self.executor.post_event_hierarchical("BORDER",
                                                       self.last_current_region)
-
+            self.arrived = True
             logging.info(
                 "eventstuff: Setting the last current region to {}, event: {}".
                 format(self.last_current_region, event_data))

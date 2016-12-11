@@ -113,6 +113,10 @@ class MoveBaseMotionHandler(handlerTemplates.MotionControlHandler):
             # The navigation stack has arrived, but apparently we're not in the right LTLMoP region,
             # so treat it as failure
             self.executor.postEvent("INFO", "We've arrived at our goal, according to the navigation")
+            self.executor.post_event_hierarchical("STATS",
+                                                  {"goal": self.find_region_mapping(next_reg.name),
+                                                   "reason": "Move_base arrived at goal, still wrong region",
+                                                   "type": "WRONG"})
             self.failed = True
             return False
 
@@ -122,7 +126,6 @@ class MoveBaseMotionHandler(handlerTemplates.MotionControlHandler):
                 GoalStatus.ABORTED, GoalStatus.REJECTED, GoalStatus.LOST
         ]:
 
-            # TODO: Check if in the correct region anyway?
             # TODO: communicate failure up
             if len(self.points) == 0:
                 self.executor.post_event_hierarchical(
