@@ -30,6 +30,7 @@ goal_regex = re.compile("^(?P<spec>(Go to ))(?P<region>.*)", re.I)
 
 
 # Highest level / Metainformation
+# TODO: not really needed, remove it
 class Hierarchical(object):
     def __init__(self, name, path, layers, init_region):
         self.path = path
@@ -50,16 +51,19 @@ class LocalGame(object):
                  initial_region=None,
                  parent_port=None):
         self.proj = project  # Reference to Hierarchical, not an LTLMoP project
-        self.level = int(level)
+        self.level = int(level)  # Hierarchical level we are on
         self.id = id
-        if self.id is not None:
+
+        # Check if we represent the highest level
+        if self.is_toplevel():
+            self.region = None
+            self.path_prefix = project.path + project.name + "." + level
+        else:
             self.region = id.split(".")[-1]  # the region we represent
             self.path_prefix = path_helper(project.path, project.name, level,
                                            id)
-        else:
-            self.region = None
-            self.path_prefix = project.path + project.name + "." + level
 
+        # Also, set up the stats logging if on highest level
         if self.is_toplevel():
             self.stats_logger = logging.getLogger('stats')
             fh = logging.FileHandler(self.path_prefix + ".log")
@@ -83,10 +87,11 @@ class LocalGame(object):
 
         self.current_region = initial_region
 
-        # only needed for basicSim
+        # only needed for basicSim, otherwise the position is acquired by the posehandler
         if initial_region is not None:
             self.set_init_region(initial_region)
 
+        # Set the goal region based on the goal_region we have got
         self.goal_region = self.get_goal_region(goal_region)
         self.set_goal_region()
 
@@ -155,7 +160,9 @@ class LocalGame(object):
                 return True
 
     def set_init_region(self, region):
-        """ Set the init region by replacing it in the specification file """
+        """
+        Set the init region by replacing it in the specification file
+        """
         # TODO: Do it properly (i.e. not via fiddling with the file)
         # Only needed for simulation with basicSim
         if region is not None:
@@ -196,6 +203,7 @@ class LocalGame(object):
             if match:
                 index = i
 
+        # If the goal is None, delete the line, otherwise replace the line
         if index is not None and self.goal_region is None:
             del self.spec_list[index]
         elif index is not None and self.goal_region is not None:
@@ -203,6 +211,9 @@ class LocalGame(object):
                 self.goal_region) + "\n"
 
     def avoid_region(self, region_name):
+        """
+        To avoid a region we insert the line "always not `region`" and set the `had_changes` flag.
+        """
         self.spec_list.insert(0, "always not %s\n" % (region_name))
         self.had_changes.set()
 
@@ -210,27 +221,26 @@ class LocalGame(object):
         """
         Sets the goal region of the game by changing the specification file.
         Also add the regions to avoid in the end
-        TODO: don't do it by fiddling with files
         """
 
+        # Update the paths to represent the current specification
         hash = self.sha1_of_spec()
         self.target_spec_path = "{}#{}.spec".format(self.path_prefix, hash)
         self.strat_path = "{}#{}.aut".format(self.path_prefix, hash)
 
+        # Since the specCompiler expects the text as multiple lines, convert it
         text = "".join(self.spec_list)
         self.compiler.specText = text
         self.compiler.proj.specText = text
         self.compiler.proj.writeSpecFile(self.target_spec_path)
 
+        # We have changed the specification, so we want to iterate in run() again
         self.game_done.clear()
-        # with open(self.target_spec_path, 'w') as output:
-        #     for line in self.spec_list:
-        #         output.write(line)
 
     def run(self):
         """
-        Runs the local game, but checks first if it has to be synthesized
-        (if regions have changed)
+        Runs the local game, but checks first if it has to be synthesized.
+        It will reiterate, if the game is done, but the `had_changes` flag is set.
         """
         logging.info("Running the game")
 
@@ -260,6 +270,9 @@ class LocalGame(object):
         logging.info("Run loop is over")
 
     def stop(self):
+        """
+        Sets the `game_done` event, so run() continues and tries to stop everything else
+        """
         self.game_done.set()
         self.teardown()
 
@@ -267,7 +280,9 @@ class LocalGame(object):
         return self.current_region
 
     def executor_setup(self):
-        """Set up the xmlrpc connection between the executor and the game"""
+        """
+        Set up the xmlrpc connection between the executor and the game
+        """
 
         # Start the executor in a new thread
         logging.warning("Current reg: " + str(self.current_region))
@@ -304,6 +319,9 @@ class LocalGame(object):
         self.executor_proxy.resume()
 
     def teardown(self):
+        """
+        Stopping the executor and XMLrpc server
+        """
         self.stop_executor()
 
         logging.debug("Shutting down serv")
@@ -318,7 +336,9 @@ class LocalGame(object):
         logging.info("Local game shut down")
 
     def find_current_config(self):
-        """Find the name of the current config in the specification file"""
+        """
+        Find the name of the current config in the specification file
+        """
         is_it_the_line = False
         with open(self.spec_path, "r") as file:
             for line in file:
@@ -425,6 +445,9 @@ class LocalGame(object):
             return [x.name for x in self.find_exits(goal)]
 
     def find_exits(self, goal):
+        """
+        Finds all exits that lead from the current region to the goal
+        """
         rfi = regions.RegionFileInterface()
         # self.id might be None, so throw it out
         rfi.readFile(self.region_path)
@@ -518,8 +541,8 @@ def exit_helper(level, fromr, to):
     return "exit_" + level + "_" + "_".join([fromr, to])
 
 
-exit_regex = re.compile(
-    "exit_(?P<level>.+?)_(?P<from>.+?)_(?P<to>.+?)(#.*)?", re.I)
+exit_regex = re.compile("exit_(?P<level>.+?)_(?P<from>.+?)_(?P<to>.+?)(#.*)?",
+                        re.I)
 
 
 def regions_from_exit(ex_region):
@@ -530,12 +553,8 @@ def regions_from_exit(ex_region):
     return (m.group('level'), m.group('from'), m.group('to'))
 
 
-def sha1_of_file(path):
-    with open(path, 'rb') as f:
-        return hashlib.sha1(f.read()).hexdigest()
-
-
 if __name__ == "__main__":
+    """ When run as script, i.e. for the highest level """
     spec_path = sys.argv[1]
     try:
         (root, filename) = os.path.split(spec_path)
