@@ -10,6 +10,7 @@ import hashlib
 import regions
 
 import logging
+import csv
 import lib.globalConfig
 import json, datetime
 from lib.specCompiler import SpecCompiler
@@ -69,6 +70,14 @@ class LocalGame(object):
             fh = logging.FileHandler(self.path_prefix + ".log")
             self.stats_logger.addHandler(fh)
             self.stats_logger.info("#Stats started\n#=======")
+
+        # Append positions to the csv file if we're the lowest level, so we don't
+        # have to pass around the position across layers
+        if self.level == 0:
+            # initialize position handler
+            self.position_fd = open(
+                project.path + project.name + '_positions.csv', 'a')
+            self.csv_writer = csv.writer(self.position_fd)
 
         self.spec_path = self.path_prefix + ".spec"
         self.region_path = self.path_prefix + ".regions"
@@ -335,6 +344,10 @@ class LocalGame(object):
         logging.info("Waiting for the execution thread to finish")
         logging.info("Local game shut down")
 
+        # Since we've opened the file when initializing, we have to close it now
+        if self.level == 0:
+            self.position_fd.close()
+
     def find_current_config(self):
         """
         Find the name of the current config in the specification file
@@ -377,11 +390,11 @@ class LocalGame(object):
 
     def handle_event(self, event_type, event_data):
         """Is called from the execute/executeStrategy on events, like borders crossed"""
-        # if event_type == "POSE":
-        # If we get a pose just pass it to the parent, needed to keep the dots of
-        # basicSim in sync, not needed otherwise
-        # self.post_event_parent(event_type, event_data)
-        # self.executor_proxy.postEvent(event_type, event_data)
+        if event_type == "POSE":
+            # If we get a pose just pass it to the parent, needed to keep the dots of
+            # basicSim in sync, not needed otherwise
+            if self.level == 0:
+                self.csv_writer.writerow(event_data)
         if event_type == "BORDER":
             self.current_region = event_data
             logging.info("Current reg now: " + str(self.current_region))
@@ -427,8 +440,8 @@ class LocalGame(object):
             else:
                 self.post_event_parent(event_type, event_data)
         else:
-            logging.debug("Got something else: (%s) %s" %
-                          (event_type, event_data))
+            # logging.debug("Got something else: (%s) %s" %
+            # (event_type, event_data))
             self.post_event_parent(event_type, event_data)
 
     def get_goal_region(self, goal):
