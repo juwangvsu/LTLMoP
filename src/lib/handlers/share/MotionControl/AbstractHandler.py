@@ -170,7 +170,7 @@ class AbstractHandler(handlerTemplates.MotionControlHandler):
                 else:
                     # Get the information based on the exit name
                     (ex, level, fr, to) = event_data.split("_")
-                    reg = (level + "_" + fr + "_" + to)
+                    reg = (level + "." + fr + "_" + to)
 
                     # Search for the next region in the mapping
                     self.last_current_region = self.mappings[self.id][str(
