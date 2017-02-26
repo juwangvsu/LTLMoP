@@ -271,8 +271,11 @@ class LocalGame(object):
                                        "Strategy was already synthesized")
             self.executor_setup()
 
-            # Wait until the game is done
-            self.game_done.wait()
+            # Wait until the game is done, but don't block forever,
+            # so we can interrupt it with Ctrl-c
+            while not self.game_done.is_set():
+              self.game_done.wait(1.0)
+
             self.last_outputs = self.executor_proxy.get_current_outputs()
 
             self.stop_executor()
@@ -571,10 +574,18 @@ if __name__ == "__main__":
     spec_path = sys.argv[1]
     try:
         (root, filename) = os.path.split(spec_path)
-        (name, level, ext) = filename.split(".")
-        hier = Hierarchical(name, root + '/', level, "1")
-        game = LocalGame(hier, level, None, None)
-        game.run()
+        filename, ext = os.path.splitext(filename)
+        (name, rest) = filename.split(".", 1)
+        if "." in rest:
+            (level, path) = rest.split(".", 1)
+            print(path)
+            hier = Hierarchical(name, root + '/', level, "1")
+            game = LocalGame(hier, level, path, None)
+            game.run()
+        else:
+            level = rest
+            hier = Hierarchical(name, root + '/', level, "1")
+            game = LocalGame(hier, level, None, None)
+            game.run()
     except KeyboardInterrupt:
         game.stop()
-        raise
