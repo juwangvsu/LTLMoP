@@ -16,8 +16,23 @@ rosSim.py - ROS/Gazebo Initialization Handler
             self.createRegionMap(executor.proj)
         
 	the png map scale down according to self.ratio 
-		= robotPhysicalWidth/robotPixelWidth
+		robotPhysicalWidth/robotPixelWidth=0.4/10
 		the scale down is 0.04
+
+	region conversion still not correct.
+	   comparing firefighting_copy.regions and original region file,
+	   the x are squzzed, y are scaled up. why?
+	   fixed.
+
+	click start, error, [01:00:56] init_region = self.proj.rfi.regions[self._getCurrentRegionFromPose()], and robot not moving. this is because the robot
+	is out of region and return no valid position, 
+	rqt_robot_steering works.
+
+	hack execute.py:_getCurrentRegionFromPose() with return 1 always.
+	now robot move after click start.
+		but it seems going far more than it should, maybe another
+		scale problem or pose report problem.
+		as region probaliy have the pixel as its spec...
 =================================================
 """
 import math
@@ -59,6 +74,7 @@ class RosInitHandler(handlerTemplates.InitHandler):
         self.ratio = robotPhysicalWidth/robotPixelWidth
 
 	# 3/19/19 jw: print scale down factor
+	print >> sys.__stdout__,'robotPhysicalWidth/robotPixelWidth='+str(robotPhysicalWidth)+'/'+str(robotPixelWidth)
 	print >> sys.__stdout__,'scale down factor ='+str(self.ratio)
         self.robotPhysicalWidth = robotPhysicalWidth
         self.modelName          = modelName
@@ -381,8 +397,11 @@ class RosInitHandler(handlerTemplates.InitHandler):
         height=boundary.size.height
 
         #use boundary size for image size
-        #Polygon.IO.writeSVG(fout, polyList,width=width,height=height)
-        Polygon.IO.writeSVG(fout, polyList,width=height,height=width)   # works better than width=width,height=height
+	# 3/19/19 j.w the original swap width and height, hence squzzed img
+	# and incorrect, change back to width=width etc
+ 
+        Polygon.IO.writeSVG(fout, polyList,width=width,height=height)
+        #Polygon.IO.writeSVG(fout, polyList,width=height,height=width)   # works better than width=width,height=height
 
 
         return fout #return the file name
@@ -474,11 +493,12 @@ class RosInitHandler(handlerTemplates.InitHandler):
         # Load the map calibration data and the region file data to feed to the simulator
         coordmap_map2lab,coordmap_lab2map = executor.hsub.getMainRobot().getCoordMaps()
         map2lab = list(coordmap_map2lab(array(center)))
-
+	map2lab[0] = map2lab[0] * self.ratio
+	map2lab[1] = map2lab[1] * self.ratio
         print "Initial region name: ", initial_region.name, " I think I am here: ", map2lab, " and center is: ", center
 
-        os.environ['ROBOT_INITIAL_POSE']="-x "+str(0)+" -y "+str(0)
-        #os.environ['ROBOT_INITIAL_POSE']="-x "+str(map2lab[0])+" -y "+str(map2lab[1])
+        #os.environ['ROBOT_INITIAL_POSE']="-x "+str(0)+" -y "+str(0)
+        os.environ['ROBOT_INITIAL_POSE']="-x "+str(map2lab[0])+" -y "+str(map2lab[1])
 
 # Needed because of errors due to control sequences?
 import unicodedata

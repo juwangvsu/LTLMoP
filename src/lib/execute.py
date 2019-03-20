@@ -147,8 +147,10 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
 
         if region is None:
             logging.warning("Pose of {} not inside any region!".format(pose))
-
-        return region
+	
+	print>>sys.__stdout__,'jwang getcurrentregion'+str(region)
+        #return region
+        return 1
 
     def shutdown(self):
         self.runStrategy.clear()
