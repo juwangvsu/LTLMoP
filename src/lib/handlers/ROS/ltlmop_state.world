@@ -5,19 +5,4 @@
           <pose>0.000000 0.000000 0.000000 0.000000 -0.000000 0.000000</pose>
           <velocity>0.000000 0.000000 0.000000 0.000000 -0.000000 0.000000</velocity>
         </link>
-      </model><model name="box_model_1">
-  <pose>0.0 0.0 0 0 0 0 </pose>
-  <link name="body">
-      <pose>0 0 0 0 0 0 </pose>
-    <velocity>0.000000 0.000000 0.000000 0.000000 -0.000000 0.000000</velocity>
-  </link>
-</model>
-
-<model name="box_model_1">
-  <pose>0.0 0.0 0 0 0 0 </pose>
-  <link name="body">
-      <pose>0 0 0 0 0 0 </pose>
-    <velocity>0.000000 0.000000 0.000000 0.000000 -0.000000 0.000000</velocity>
-  </link>
-</model>
-
+      </model>

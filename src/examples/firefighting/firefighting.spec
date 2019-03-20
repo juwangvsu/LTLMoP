@@ -38,11 +38,11 @@ hazardous_item, 1
 
 RegionMapping: # Mapping between region names and their decomposed counterparts
 living = p4
-deck = p7
 porch = p3
+deck = p7
+others = 
 dining = p6
 bedroom = p8
-others = 
 kitchen = p5
 
 Spec: # Specification in structured English

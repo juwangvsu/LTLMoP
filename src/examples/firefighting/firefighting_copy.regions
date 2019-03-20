@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="iso-8859-1" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN" "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd">
+<svg xmlns="http://www.w3.org/2000/svg" width="657" height="1041">
+<path style="fill:rgb(255, 0, 0);fill-opacity:1.0;fill-rule:evenodd;stroke:rgb(0, 0, 0);stroke-width:1.0;" d="M 0, 796.991 L 0, 0 L 152.101, 0 L 152.101, 380.274 L 152.101, 392.95 L 149.576, 785.9 z "/>
+<path style="fill:rgb(0, 255, 0);fill-opacity:1.0;fill-rule:evenodd;stroke:rgb(0, 0, 0);stroke-width:1.0;" d="M 509.317, 765.301 L 290.948, 763.717 L 290.948, 396.119 L 290.948, 380.274 L 508.686, 380.274 z "/>
+<path style="fill:rgb(0, 0, 255);fill-opacity:1.0;fill-rule:evenodd;stroke:rgb(0, 0, 0);stroke-width:1.0;" d="M 572.429, 1041 L 227.836, 1041 L 149.576, 785.9 L 290.317, 774.808 L 513.104, 774.808 L 656.369, 782.731 z "/>
+<path style="fill:rgb(255, 255, 0);fill-opacity:1.0;fill-rule:evenodd;stroke:rgb(0, 0, 0);stroke-width:1.0;" d="M 513.104, 380.274 L 508.686, 380.274 L 290.948, 380.274 L 152.101, 380.274 L 152.101, 0 L 513.104, 0 z "/>
+<path style="fill:rgb(255, 0, 0);fill-opacity:1.0;fill-rule:evenodd;stroke:rgb(0, 0, 0);stroke-width:1.0;" d="M 149.576, 785.9 L 152.101, 392.95 L 290.948, 396.119 L 290.948, 763.717 L 290.317, 774.808 z "/>
+<path style="fill:rgb(0, 255, 0);fill-opacity:1.0;fill-rule:evenodd;stroke:rgb(0, 0, 0);stroke-width:1.0;" d="M 656.369, 782.731 L 513.104, 774.808 L 513.104, 380.274 L 513.104, 0 L 657, 0 z "/>
+</svg>

@@ -3,6 +3,21 @@
 """
 =================================================
 rosSim.py - ROS/Gazebo Initialization Handler
+
+3/19/19 jw: when convert region info to gazebo world file, the
+	obstacles (polygon) are converted to box. this is wrong, so for now
+	disable the conversion of obstacles.
+
+	turtlebot was spawned in a location, in pixel scale, that must
+	be scaled to the size the floor plan.
+
+	the region are converted to a png file, which is used to render
+	the ground plan in ltlmop_map.world.
+            self.createRegionMap(executor.proj)
+        
+	the png map scale down according to self.ratio 
+		= robotPhysicalWidth/robotPixelWidth
+		the scale down is 0.04
 =================================================
 """
 import math
@@ -42,6 +57,9 @@ class RosInitHandler(handlerTemplates.InitHandler):
         self.worldFile=worldFile
         #Map to real world scaling constant
         self.ratio = robotPhysicalWidth/robotPixelWidth
+
+	# 3/19/19 jw: print scale down factor
+	print >> sys.__stdout__,'scale down factor ='+str(self.ratio)
         self.robotPhysicalWidth = robotPhysicalWidth
         self.modelName          = modelName
         self.coordmap_map2lab   = executor.hsub.coordmap_map2lab
@@ -94,7 +112,10 @@ class RosInitHandler(handlerTemplates.InitHandler):
             for region in self.original_regions.regions:
                 if region.isObstacle is True:
                     # TODO : add obstacles again
-                    addObstacle = True
+
+                    addObstacle =False # 3/19/19 jw, disable adding obstacles. 
+                    #addObstacle = True
+
                     break
 
             source = self.path + "/ltlmop_essential_state.world"
@@ -102,6 +123,8 @@ class RosInitHandler(handlerTemplates.InitHandler):
 
             if addObstacle is False:
                 print "INIT:NO obstacle"
+
+	#3/19/19: jw: this is bypassed as we force it False, see above
 
             if addObstacle is True:
                 print "INIT:OBSTACLES!!"
@@ -126,6 +149,8 @@ class RosInitHandler(handlerTemplates.InitHandler):
                         pose = center
                         print >>sys.__stdout__,"obstacle pose:" + str(pose)
                         height = region.height
+                        if height == 0:
+			    height = 10
                         if height == 0:
                             height = self.original_regions.getMaximumHeight()
 
@@ -414,6 +439,10 @@ class RosInitHandler(handlerTemplates.InitHandler):
         self.replaceAll(path,searchExp,replaceExp)
 
     def rosSubProcess(self, proj, worldFile='ltlmop_map.world'):
+#to debug gazebo and ros works fine, run on terminal: with verbose=true on
+#gazebo_ros launch file, see 3/19/19 note ltlmop spin readme
+#roslaunch /media/student/code1/ltlmop-ros/LTLMoP/src/lib/handlers/ROS/ltlmop.launch world_file:=/media/student/code1/ltlmop-ros/LTLMoP/src/lib/handlers/ROS/ltlmop_map.world
+	print >>sys.__stdout__, ['stdbuf -oL roslaunch '+ self.path + '/ltlmop.launch world_file:='+self.path+'/'+worldFile]
         start = subprocess.Popen(['stdbuf -oL roslaunch '+ self.path + '/ltlmop.launch world_file:='+self.path+'/'+worldFile], shell = True, stdout=subprocess.PIPE)
 
         # Wait for it to fully start up
@@ -448,7 +477,8 @@ class RosInitHandler(handlerTemplates.InitHandler):
 
         print "Initial region name: ", initial_region.name, " I think I am here: ", map2lab, " and center is: ", center
 
-        os.environ['ROBOT_INITIAL_POSE']="-x "+str(map2lab[0])+" -y "+str(map2lab[1])
+        os.environ['ROBOT_INITIAL_POSE']="-x "+str(0)+" -y "+str(0)
+        #os.environ['ROBOT_INITIAL_POSE']="-x "+str(map2lab[0])+" -y "+str(map2lab[1])
 
 # Needed because of errors due to control sequences?
 import unicodedata
