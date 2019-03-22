@@ -52,11 +52,9 @@ class RosPoseHandler(handlerTemplates.PoseHandler):
 			#  Use the tf module transforming quaternions to euler
 			try:
         			boundary_region = self.executor.proj.rfiold.regions[self.executor.proj.rfiold.indexOfRegionWithName("boundary")]
-        			print "boundary region: ", boundary_region.name, boundary_region.position
+        			#print "boundary region: ", boundary_region.name, boundary_region.position
         			bsize = boundary_region.size
         			bpos = boundary_region.position
-        			#center.x=(center.x-bsize.x/2-bpos.x)* self.ratio
-        			#center.y=(-center.y+bsize.y/2-bpos.y)* self.ratio
 
 				angles = euler_from_quaternion([self.or_x, self.or_y, self.or_z, self.or_w])
 				self.theta = angles[2]
@@ -66,8 +64,8 @@ class RosPoseHandler(handlerTemplates.PoseHandler):
 				#3/20/19 jw: scale real pos to pixel space
 				#print 'pos_x' + str(self.pos_x)
 				#print 'self.ratio' + str(shared.ratio)
-				#print 'offset' + str(shared.offset[0])
-				self.last_pose = array([self.pos_x/shared.ratio+shared.offset[0]+bsize.x/2, -self.pos_y/shared.ratio+shared.offset[1]+bsize.y/2, self.theta, self.pos_z])
+				#print 'InitiHandler.offset' + str(shared.offset)
+				self.last_pose = array([self.pos_x/shared.ratio+shared.offset[0]+bsize.x/2+bpos.x, -self.pos_y/shared.ratio+shared.offset[1]+bsize.y/2+bpos.y, self.theta, self.pos_z])
 				#print >> sys.__stdout__,'jwang last pose '# + str(self.last_pose)
 				# 3/19/19 jw. print to sys.__stdout__ cause strange error
 				print 'jwang last pose in pixel' + str(self.last_pose)

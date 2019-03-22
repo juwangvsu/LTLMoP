@@ -39,6 +39,8 @@ class RosDriveHandler(handlerTemplates.DriveHandler):
         #vx = 0.09*X[0,0]
         #vy = 0.09*X[1,0]
         # ^^ Changed the scaling because it was getting stuck - too high of a velocity ? - Hadas 20/12/07
+	y=-y    # 3/22/19 jw: this api is called from high level controller, which assume pixel coord, to apply to gazebo or real coord, y
+		# axis must be inverted.
         vx = 0.29*x
         vy = 0.29*y
         vz = 0.29*z

@@ -505,7 +505,7 @@ class RosInitHandler(handlerTemplates.InitHandler):
 	bsize = boundary_region.size
 	bpos = boundary_region.position
         center.x=(center.x-bsize.x/2-bpos.x)* self.ratio
-        center.y=(-center.y+bsize.y/2-bpos.y)* self.ratio
+        center.y=(-center.y+bsize.y/2+bpos.y)* self.ratio
         print "Initial region name: ", initial_region.name, " I think I am here: ", map2lab, " and adjusted center in gazebo is: ", center
 	print "region point info: ", initial_region.pointArray
         region1 = executor.proj.rfiold.regions[5]

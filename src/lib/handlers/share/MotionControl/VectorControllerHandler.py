@@ -93,7 +93,7 @@ class VectorControllerHandler(handlerTemplates.MotionControlHandler):
         vertices = mat(pointArray).T
         # Figure out whether we've reached the destination region
         arrived = is_inside([pose[0], pose[1]], vertices)
-
+	#print 'is_inside',pose, vertices
         if departed and (not arrived) and (time.time()-self.last_warning) > 0.5:
             #print "WARNING: Left current region but not in expected destination region"
             # Figure out what region we think we stumbled into
