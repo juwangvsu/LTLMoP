@@ -20,7 +20,7 @@ fastslow: False
 decompose: True
 
 CurrentConfigName:
-Basic Simulation
+Untitled configuration
 
 Customs: # List of custom propositions
 carrying_item
@@ -59,6 +59,7 @@ Do pick_up if and only if you are sensing hazardous_item and you are not activat
 If you are activating pick_up then stay there
 carrying_item is set on pick_up and reset on drop
 Do drop if and only if you are in porch and you are activating carrying_item
+
 
 If you did not activate carrying_item then always not porch
 

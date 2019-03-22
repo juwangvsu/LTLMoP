@@ -14,9 +14,11 @@ say_spill, 1
 CompileOptions:
 convexify: True
 parser: structured
+symbolic: False
+use_region_bit_encoding: True
+synthesizer: jtlv
 fastslow: False
 decompose: True
-use_region_bit_encoding: True
 
 CurrentConfigName:
 basicSim
@@ -38,13 +40,13 @@ head_tapped, 1
 
 RegionMapping: # Mapping between region names and their decomposed counterparts
 r4 = p9
-office = p13
-between$r3$and$r4$ = p14
-r3 = p10
-between$r1$and$r2$ = p15
-r2 = p11
-others = p1, p2, p3, p4, p5
 r1 = p12
+r2 = p11
+r3 = p10
+between$r3$and$r4$ = p14
+office = p13
+between$r1$and$r2$ = p15
+others = p1, p2, p3, p4, p5
 
 Spec: # Specification in structured English
 group Corners is r1, r2, r3, r4

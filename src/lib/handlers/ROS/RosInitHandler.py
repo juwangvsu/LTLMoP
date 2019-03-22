@@ -493,12 +493,28 @@ class RosInitHandler(handlerTemplates.InitHandler):
         # Load the map calibration data and the region file data to feed to the simulator
         coordmap_map2lab,coordmap_lab2map = executor.hsub.getMainRobot().getCoordMaps()
         map2lab = list(coordmap_map2lab(array(center)))
+
+	#3/20/19, jw, check coordmap_map2lab conversion. the 
+	# conversion below does little
 	map2lab[0] = map2lab[0] * self.ratio
 	map2lab[1] = map2lab[1] * self.ratio
-        print "Initial region name: ", initial_region.name, " I think I am here: ", map2lab, " and center is: ", center
+        print "center of initial region: ", center
+	print "region[0-4] name: ", executor.proj.rfiold.regions[0].name, executor.proj.rfiold.regions[1], executor.proj.rfiold.regions[2], executor.proj.rfiold.regions[3], executor.proj.rfiold.regions[4]
+        boundary_region = executor.proj.rfiold.regions[executor.proj.rfiold.indexOfRegionWithName("boundary")]
+        print "boundary region: ", boundary_region.name, boundary_region.position 
+	bsize = boundary_region.size
+	bpos = boundary_region.position
+        center.x=(center.x-bsize.x/2-bpos.x)* self.ratio
+        center.y=(-center.y+bsize.y/2-bpos.y)* self.ratio
+        print "Initial region name: ", initial_region.name, " I think I am here: ", map2lab, " and adjusted center in gazebo is: ", center
+	print "region point info: ", initial_region.pointArray
+        region1 = executor.proj.rfiold.regions[5]
+	print "region[1] point info: ", region1.name, region1.pointArray
+	os.environ['ROBOT_INITIAL_POSE']="-x "+str(center.x)+" -y "+str(center.y)
+
 
         #os.environ['ROBOT_INITIAL_POSE']="-x "+str(0)+" -y "+str(0)
-        os.environ['ROBOT_INITIAL_POSE']="-x "+str(map2lab[0])+" -y "+str(map2lab[1])
+        #os.environ['ROBOT_INITIAL_POSE']="-x "+str(map2lab[0])+" -y "+str(map2lab[1])
 
 # Needed because of errors due to control sequences?
 import unicodedata

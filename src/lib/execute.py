@@ -134,14 +134,13 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
                                                 self.proj.enabled_actuators + self.proj.all_customs +  [region_domain])
 
         return strat
-
     def _getCurrentRegionFromPose(self, rfi=None):
         # TODO: move this to regions.py
         if rfi is None:
             rfi = self.proj.rfi
 
         pose = self.hsub.coordmap_lab2map(self.hsub.getPose())
-
+	print>>sys.__stdout__,'jwang robot curr pose = '+ str(pose)
         region = next((i for i, r in enumerate(rfi.regions) if r.name.lower() != "boundary" and \
                         r.objectContainsPoint(*pose)), None)
 
@@ -341,6 +340,7 @@ class LTLMoPExecutor(ExecutorStrategyExtensions,ExecutorResynthesisExtensions, o
             avg_freq = 0.9 * avg_freq + 0.1 * 1 / (toc - tic) # IIR filter
             self.postEvent("FREQ", int(math.ceil(avg_freq)))
             pose = self.hsub.getPose(cached=True)[0:2]
+	    print>>sys.__stdout__,'jwang robot curr pose = '+ str(pose)
             self.postEvent("POSE", tuple(map(int, self.hsub.coordmap_lab2map(pose))))
 
             last_gui_update_time = self.timer_func()

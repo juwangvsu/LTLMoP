@@ -9,7 +9,6 @@
     This module defines objects for handler system.
     It also provides interface that deal with handler and config files
 """
-
 import os, sys, re
 import fileMethods
 import inspect, types

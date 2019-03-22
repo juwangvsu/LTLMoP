@@ -169,8 +169,11 @@ class RegionFileInterface(object):
             region.name = 'r' + str(self.getNextAvailableRegionNumber())
 
     def indexOfRegionWithName(self, name):
+#	print 'index of:', name
         for i, region in enumerate(self.regions):
+#	    print region.name
             if region.name.lower() == name.lower():
+#		print 'match' 
                 return i
         # only show error message if it is not boundary
         if name != "boundary":

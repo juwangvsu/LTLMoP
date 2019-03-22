@@ -21,6 +21,8 @@ class BasicSimInitHandler(handlerTemplates.InitHandler):
         # Start in the center of the defined initial region
         init_region_obj = rfi_original.regions[rfi_original.indexOfRegionWithName(init_region)]
         center = init_region_obj.getCenter()
+        print "Initial region name: ", init_region_obj.name, " I think I am here: center is: ", center
+
 
         #initialize the simulator
         self.simulator =  basicSimulator.basicSimulator([center[0],center[1],0.0])
