@@ -3,6 +3,14 @@
 """
 =================================================
 rosSim.py - ROS/Gazebo Initialization Handler
+6/19/19  jw: how to worldFile are generated and used: 
+	ROSUAV/
+	worldFile must = ltlmop_map.world to have region drawed. The worldFile is specified at the GUI when configure simulation. prior to today the specified worldfile is always created and existing info wiped. this is changed such that if not ltlmop_map.world, then the file should not be created and assumed existing so a user provide world file can be used.  6/18/19 '
+
+6/18/19 jw: creat RosInitHandler_UAV.py to lauch gazebo and spawn iris drone
+	ROS/ 
+ rosrun gazebo_ros spawn_model --unpause -sdf -file ~/.gazebo/models/bowl/model.sdf -model Bowl
+this version is for UAV. the one in ROS/ use turtlebot
 
 3/19/19 jw: when convert region info to gazebo world file, the
 	obstacles (polygon) are converted to box. this is wrong, so for now
@@ -88,6 +96,17 @@ class RosInitHandler(handlerTemplates.InitHandler):
 
         self.destination = self.path+ "/" + self.worldFile
         self.state       = self.path+"/ltlmop_state.world"
+
+	print >> sys.__stdout__,'worldFile must = ltlmop_map.world to have region drawed. The worldFile is specified at the GUI when configure simulation. prior to today the specified worldfile is always created and existing info wiped. this is changed such that if not ltlmop_map.world, then the file should not be created and assumed existing so a user provide world file can be used.  6/18/19 '
+
+        if not self.worldFile=='ltlmop_map.world':
+        	# this case we skip the creation of the world file 6/19/19 
+        	# Create a subprocess for ROS
+        	self.rosSubProcess(executor.proj, worldFile)
+        	#self.rosSubProcess(executor.proj,'iris_cam2.world.orig')
+        	rospy.init_node('LTLMoPHandlers')
+		return
+
         #clean the original file for world and state
         f = open(self.destination,"w")
         f.close()
@@ -98,16 +117,18 @@ class RosInitHandler(handlerTemplates.InitHandler):
         source = self.path+"/ltlmop_essential_front.world"
         self.appendObject(source,self.destination)
 
-        if self.worldFile=='ltlmop_map.world':
+        if self.worldFile=='ltlmop_map.world':#this condition is now redundant... 6/19/19
             #This creates a png copy of the regions to load into gazebo
             self.createRegionMap(executor.proj)
 
         # close the world file with the necessities
         source = self.path+"/ltlmop_essential_end.world"
         self.appendObject(source,self.destination)
-
+	
         # Center the robot in the init region (not on calibration)
-        if not init_region=="__origin__" :
+	# and create ltlmop_map.world. if the specified worldFile
+	# is not ltlmop_map.world, we will not get here. 6/19/19
+        if not init_region=="__origin__":
             self.centerTheRobot(executor, init_region)
 
             #clean the original file for world and state
@@ -224,7 +245,8 @@ class RosInitHandler(handlerTemplates.InitHandler):
         # self.pub = rospy.Publisher('/gazebo/set_model_state', ModelState)
 
         # Create a subprocess for ROS
-        self.rosSubProcess(executor.proj,'iris_cam2.world.orig')
+        self.rosSubProcess(executor.proj, worldFile)
+        #self.rosSubProcess(executor.proj,'iris_cam2.world.orig')
 
         #The following is a global node for LTLMoP
         rospy.init_node('LTLMoPHandlers')
@@ -461,8 +483,9 @@ class RosInitHandler(handlerTemplates.InitHandler):
 #to debug gazebo and ros works fine, run on terminal: with verbose=true on
 #gazebo_ros launch file, see 3/19/19 note ltlmop spin readme
 #roslaunch /media/student/code1/ltlmop-ros/LTLMoP/src/lib/handlers/ROS/ltlmop.launch world_file:=/media/student/code1/ltlmop-ros/LTLMoP/src/lib/handlers/ROS/ltlmop_map.world
-	print >>sys.__stdout__, ['stdbuf -oL roslaunch '+ self.path + '/ltlmop.launch world_file:='+self.path+'/'+worldFile]
-        start = subprocess.Popen(['stdbuf -oL roslaunch '+ self.path + '/ltlmop.launch world_file:='+self.path+'/'+worldFile], shell = True, stdout=subprocess.PIPE)
+
+	print >>sys.__stdout__, ['stdbuf -oL roslaunch '+ self.path + '/ltlmop_uav.launch world_file:='+self.path+'/'+worldFile]
+        start = subprocess.Popen(['stdbuf -oL roslaunch '+ self.path + '/ltlmop_uav.launch world_file:='+self.path+'/'+worldFile], shell = True, stdout=subprocess.PIPE)
         px4 = subprocess.Popen(['/media/student/code1/ltlmop-ros/LTLMoP/src/lib/handlers/ROSUAV/px4simsitl1.5.5-gazebo7-iris14570pole.sh'], shell = True)
 	mavros = subprocess.Popen(['nohup', '/home/student/turtlebot/src/rqt_mypkg/scripts/run_mavroslaunch_uavcam.sh'])
         # Wait for it to fully start up

@@ -35,7 +35,7 @@ else
 		gnome-terminal -x $SHELL -ic "cd ~/Downloads/px4-1.5.5/Firmware/Tools/sitl_gazebo; rosrun gazebo_ros gzserver --verbose worlds/iris_cam2.world"
         else
 	
-		gnome-terminal -x $SHELL -ic "cd ~/Downloads/px4-1.5.5/Firmware/Tools/sitl_gazebo; rosrun gazebo_ros gzserver --verbose worlds/$1"
+		#gnome-terminal -x $SHELL -ic "cd ~/Downloads/px4-1.5.5/Firmware/Tools/sitl_gazebo; rosrun gazebo_ros gzserver --verbose worlds/$1"
 	fi
 
 	#gnome-terminal -x $SHELL -ic "echo false; bash"

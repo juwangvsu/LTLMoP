@@ -5,7 +5,6 @@
 *.cfg
 *.ltl
 *.smv
-*.world
 *_decomposed.regions
 *~
 .player

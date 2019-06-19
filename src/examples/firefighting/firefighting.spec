@@ -20,7 +20,7 @@ fastslow: False
 decompose: True
 
 CurrentConfigName:
-uav simulation
+Untitled configuration uav
 
 Customs: # List of custom propositions
 carrying_item
