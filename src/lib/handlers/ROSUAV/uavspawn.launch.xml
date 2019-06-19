@@ -8,7 +8,7 @@
  --> 
   <!-- Gazebo model spawner -->
   <node name="spawn_iris_model" pkg="gazebo_ros" type="spawn_model"
-        args="$(optenv ROBOT_INITIAL_POSE) -unpause -sdf -file /home/student/.gazebo/models/iris_px4_standoff_demo_cam1/model.sdf -model iris"/>
+        args="$(optenv ROBOT_INITIAL_POSE) -unpause -sdf -file /home/student/.gazebo/models/iris_px4_standoff_demo_cam1/model.sdf -model iris_demo"/>
   
   <!-- Velocity muxer
   <node pkg="nodelet" type="nodelet" name="mobile_base_nodelet_manager" args="manager"/>

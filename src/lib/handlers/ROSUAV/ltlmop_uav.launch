@@ -14,7 +14,7 @@
     <arg name="world_name" value="$(arg world_file)"/>
   </include>
   
-  <include file="/media/student/code1/ltlmop-ros/LTLMoP/src/lib/handlers/ROS/uavspawn.launch.xml">
+  <include file="/media/student/code1/ltlmop-ros/LTLMoP/src/lib/handlers/ROSUAV/uavspawn.launch.xml">
     <arg name="base" value="$(arg base)"/>
     <arg name="stacks" value="$(arg stacks)"/>
     <arg name="3d_sensor" value="$(arg 3d_sensor)"/>
