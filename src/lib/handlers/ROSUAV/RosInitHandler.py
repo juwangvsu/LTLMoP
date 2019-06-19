@@ -485,9 +485,11 @@ class RosInitHandler(handlerTemplates.InitHandler):
 #roslaunch /media/student/code1/ltlmop-ros/LTLMoP/src/lib/handlers/ROS/ltlmop.launch world_file:=/media/student/code1/ltlmop-ros/LTLMoP/src/lib/handlers/ROS/ltlmop_map.world
 
 	print >>sys.__stdout__, ['stdbuf -oL roslaunch '+ self.path + '/ltlmop_uav.launch world_file:='+self.path+'/'+worldFile]
-        start = subprocess.Popen(['stdbuf -oL roslaunch '+ self.path + '/ltlmop_uav.launch world_file:='+self.path+'/'+worldFile], shell = True, stdout=subprocess.PIPE)
+        #start = subprocess.Popen(['stdbuf -oL roslaunch '+ self.path + '/ltlmop_uav.launch world_file:='+self.path+'/'+worldFile], shell = True, stdout=subprocess.PIPE)
+        gazebocmd = 'stdbuf -oL roslaunch '+ self.path + '/ltlmop_uav.launch world_file:='+self.path+'/'+worldFile
+	start = subprocess.Popen(['/media/student/code1/ltlmop-ros/LTLMoP/src/lib/handlers/ROSUAV/rungazebo.sh', 'term_title gazebo; '+ gazebocmd+'; bash'],stdout=subprocess.PIPE)
         px4 = subprocess.Popen(['/media/student/code1/ltlmop-ros/LTLMoP/src/lib/handlers/ROSUAV/px4simsitl1.5.5-gazebo7-iris14570pole.sh'], shell = True)
-	mavros = subprocess.Popen(['nohup', '/home/student/turtlebot/src/rqt_mypkg/scripts/run_mavroslaunch_uavcam.sh'])
+	mavros = subprocess.Popen(['/home/student/turtlebot/src/rqt_mypkg/scripts/run_mavroslaunch_uavcam.sh'], shell = True)
         # Wait for it to fully start up
         while 1:
             input = start.stdout.readline()

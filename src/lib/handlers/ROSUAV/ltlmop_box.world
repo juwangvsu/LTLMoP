@@ -1,0 +1,83 @@
+<model name="box_model_1">
+      <pose>413.074074074 324.518518519 5.0 0 -0.000000 0.000000</pose>
+  <static>1</static>
+  <link name="body">
+      <pose>0.0 0.0 0.0 0 -0.000000 0.000000</pose>
+    <inertial>
+      <mass>1.000000</mass>
+      <inertia>
+        <ixx>1.000000</ixx>
+        <ixy>0.000000</ixy>
+        <ixz>0.000000</ixz>
+        <iyy>1.000000</iyy>
+        <iyz>0.000000</iyz>
+        <izz>1.000000</izz>
+      </inertia>
+    </inertial>
+    <collision name="geom">
+      <laser_retro>0.000000</laser_retro>
+      <geometry>
+       <box><size>220.0 12.0 10</size></box>
+      </geometry>
+      <pose>0.000000 0.000000 0.000000 0.000000 -0.000000 0.000000</pose>
+      <surface>
+        <bounce>
+          <restitution_coefficient>0.000000</restitution_coefficient>
+          <threshold>100000.000000</threshold>
+        </bounce>
+        <friction>
+          <ode>
+            <mu>-1.000000</mu>
+            <mu2>-1.000000</mu2>
+            <fdir1>0.000000 0.000000 0.000000</fdir1>
+            <slip1>0.000000</slip1>
+            <slip2>0.000000</slip2>
+          </ode>
+        </friction>
+        <contact>
+          <ode>
+            <soft_cfm>0.000000</soft_cfm>
+            <soft_erp>0.200000</soft_erp>
+            <kp>1000000000000.000000</kp>
+            <kd>1.000000</kd>
+            <max_vel>100.000000</max_vel>
+            <min_depth>0.001000</min_depth>
+          </ode>
+        </contact>
+      </surface>
+    </collision>
+    <visual name="visual1">
+      <cast_shadows>1</cast_shadows>
+      <laser_retro>0.000000</laser_retro>
+      <transparency>0.000000</transparency>
+      <geometry>
+       <box><size>220.0 12.0 10</size></box>
+      </geometry>
+      <material>
+        <script>Gazebo/WoodPallet</script>
+      </material>
+    </visual>
+    <sensor name="cam" type="depth">
+      <always_on>1</always_on>
+      <update_rate>30.000000</update_rate>
+      <visualize>0</visualize>
+      <pose>0.023200 0.060000 0.098000 0.000000 -0.000000 0.000000</pose>
+      <camera>
+        <horizontal_fov>0.785398</horizontal_fov>
+        <image>
+          <width>320</width>
+          <height>240</height>
+          <format>L8</format>
+        </image>
+        <clip>
+          <near>0.100000</near>
+          <far>100.000000</far>
+        </clip>
+      </camera>
+    </sensor>
+    <velocity_decay>
+      <linear>0.000000</linear>
+      <angular>0.000000</angular>
+    </velocity_decay>
+  </link>
+</model>
