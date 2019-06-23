@@ -2,6 +2,9 @@
 import rospy, math, subprocess, os, sys
 from gazebo_msgs import srv
 from geometry_msgs.msg import Twist
+from twiststamped_uavpos import cmd_vel_listener
+from twiststamped_uavpos import cmdcallback
+from twiststamped_uavpos import setoffmode
 """
 ==================================================================
 rosLocomotionCommand.py - ros Locomotion Command Handler
@@ -27,6 +30,9 @@ class RosLocomotionCommandHandler(handlerTemplates.LocomotionCommandHandler):
 			# the turtlebot takes /cmd_vel
 		except:
 			print >>sys.__stdout__, 'Problem setting up Locomotion Command Node'
+		cmd_vel_listener()
+		print >>sys.__stdout__, 'cmd_vel_listener called'
+
         def getPose(self,cached = False):
                 if (not cached) or self.last_pose is None:
                         #Ros service call to get model state
@@ -61,16 +67,19 @@ class RosLocomotionCommandHandler(handlerTemplates.LocomotionCommandHandler):
 		try:
 			#Publish the command to the robot
 			self.pub.publish(twist)
+			setoffmode()
+			cmdcallback(twist)
 		except:
 			print 'Error publishing Twist Command'
 
 if __name__ == '__main__':
+#to test syntax with main(). must setup  export PYTHONPATH=$PYTHONPATH:/media/student/code1/ltlmop-ros/LTLMoP/src/lib:/media/student/code1/ltlmop-ros/LTLMoP/src/
     rospy.init_node('twist_to_mavcmd', anonymous=True)
     try:
         loch=RosLocomotionCommandHandler(1,1,'/mobile_base/commands/velocity')
     except rospy.ROSInterruptException:
         pass
-    rate = rospy.Rate(100) # 10hz
+    rate = rospy.Rate(1) # 10hz
     mycount=0
     while not rospy.is_shutdown():
 	loch.sendCommand([0,1,0])

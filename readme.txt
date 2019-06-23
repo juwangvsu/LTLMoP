@@ -1,3 +1,23 @@
+6/20/19 ROS ROSUAV driving command execution flow.
+
+	after click start in the simulation tab, the automata engine
+	start to send movement command, which will be routed to
+	RosDriveHandler.py, which call RosLocomotionCommandHandler.py.
+	RosLocomotionCommandHandler.py publish the Twist msg on a topic
+	//cmd_vel_mux/input/navi, which is interplated by the gazebo plugin
+	code
+
+	modify and debugging RosDriveHandler.py, note if there are syntax error on this
+	file, it will not show error like usual in the xterm window... so testing the code
+	is a bit trick, 
+
+	RosDriveHandler.py: init func subscribe to /mavros/state, the call back check
+	if it is armed and takenoff. if not, call arming and takeoff service. notice takeoff
+	service should not be called too freq, we put a 10 sec delay between takeoff cmd.
+
+	after click start button at the simulation window, setVelocity() will be called
+	repeatedly. this need to check that proper RosPoseHandler.py is coded for UAV.
+
 6/19/19 tbd:
 	ROSUAV/
 		modify movement code for uav, translate to mavros
