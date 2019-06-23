@@ -13,6 +13,7 @@ using feedback linearization.
 import rospy
 from math import sin, cos
 import sys
+from subprocess import Popen, PIPE, STDOUT
 from mavros_msgs.msg import State
 import lib.handlers.handlerTemplates as handlerTemplates
 from mavros_msgs.srv import *
@@ -38,6 +39,7 @@ class RosDriveHandler(handlerTemplates.DriveHandler):
 	self.statetopic = '/mavros/state'
 	rospy.Subscriber(self.statetopic, State, self.processData)
 	print >> sys.__stdout__, "wang rosdriverhandler.py subscribe to /mavros/state"
+	self.takeoffdone=0
 
     def processData(self, data):
 	
@@ -45,15 +47,24 @@ class RosDriveHandler(handlerTemplates.DriveHandler):
 	print >> sys.__stdout__, data.armed
 	print >> sys.__stdout__, data.guided
 	print >> sys.__stdout__, data.mode
- 	if not data.armed == True or not data.guided == True or not data.mode == "AUTO.TAKEOFF":
+ 	if data.armed == True and data.mode == "AUTO.TAKEOFF":
+		#takeoff done, skip the next if statement by setting takeoffdone
+		self.takeoffdone=5
+
+ 	if self.takeoffdone < 5 and (not data.armed == True or not data.guided == True or not data.mode == "AUTO.TAKEOFF"):
+		#try 5 times takeoff
 		print >> sys.__stdout__, "need arm and takeoff" 
 		armingcall = rospy.ServiceProxy('/mavros/cmd/arming', CommandBool)
+		print >> sys.__stdout__, "call rosservice arming" 
 		resp1 = armingcall(True)
 		now = rospy.get_time()
-		if (now - self.last_takeoffcmd_tm) >10 :
+		if (now - self.last_takeoffcmd_tm) >7 :
 			setmodecall = rospy.ServiceProxy('/mavros/set_mode', SetMode)
-			resp1 = setmodecall(0,'AUTO.TAKEOFF')
+			print >> sys.__stdout__, "call setmode takeoff" 
+			#resp1 = setmodecall(0,'AUTO.TAKEOFF')
+			Popen(['nohup', '/home/student/turtlebot/src/rqt_mypkg/scripts/mavroscall.sh', 'takeoff', 'px4'])
 			self.last_takeoffcmd_tm = now
+			self.takeoffdone= self.takeoffdone + 1
 			
 #desired state /mavros/state	
 #armed: True

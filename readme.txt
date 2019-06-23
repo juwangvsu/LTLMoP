@@ -1,3 +1,9 @@
+6/23/19 ROSUAV too many takeoff call
+	RosDriveHandler.py keep sending takeoff rosservice call
+	bug fixed.
+	/mavros/set_mode is good.
+	processData() callback for /mavros/state
+
 6/20/19 ROS ROSUAV driving command execution flow.
 
 	after click start in the simulation tab, the automata engine
